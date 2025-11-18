@@ -1,0 +1,23 @@
+{
+  "name": "academic-journal-platform",
+  "version": "1.0.0",
+  "description": "Complete academic journal management system with submission, peer review, and publishing workflow",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "server:dev": "cd server && npm run dev",
+    "client:dev": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "start": "cd server && npm start",
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "db:migrate": "cd server && npm run db:migrate",
+    "db:seed": "cd server && npm run db:seed",
+    "test": "cd server && npm test && cd ../client && npm test"
+  },
+  "keywords": ["academic", "journal", "peer-review", "publishing", "manuscript"],
+  "author": "Academic Journal Platform",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
