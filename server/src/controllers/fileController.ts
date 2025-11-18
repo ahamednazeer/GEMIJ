@@ -9,7 +9,16 @@ const prisma = new PrismaClient();
 export const uploadFiles = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id: submissionId } = req.params;
-    const files = req.files as Express.Multer.File[];
+    const uploadedFiles = req.files as { [fieldname: string]: Express.Multer.File[] };
+    
+    // Extract files from either 'file' or 'files' field
+    let files: Express.Multer.File[] = [];
+    if (uploadedFiles.file) {
+      files = files.concat(uploadedFiles.file);
+    }
+    if (uploadedFiles.files) {
+      files = files.concat(uploadedFiles.files);
+    }
     
     if (!files || files.length === 0) {
       return res.status(400).json({

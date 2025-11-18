@@ -10,6 +10,7 @@ import submissionRoutes from './routes/submissions';
 import editorRoutes from './routes/editor';
 import reviewRoutes from './routes/reviews';
 import publicRoutes from './routes/public';
+import adminRoutes from './routes/admin';
 
 dotenv.config();
 
@@ -22,7 +23,8 @@ const limiter = rateLimit({
   message: {
     success: false,
     error: 'Too many requests from this IP, please try again later.'
-  }
+  },
+  skip: () => process.env.NODE_ENV !== 'production'
 });
 
 app.use(helmet());
@@ -43,6 +45,7 @@ app.use('/api/submissions', submissionRoutes);
 app.use('/api/editor', editorRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({

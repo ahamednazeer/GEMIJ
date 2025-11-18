@@ -29,6 +29,11 @@ class PublicService {
     return response.data.data!;
   }
 
+  async getArticleById(id: string): Promise<Article> {
+    const response = await axios.get<ApiResponse<Article>>(`${API_URL}/public/article/${id}`);
+    return response.data.data!;
+  }
+
   async searchArticles(params: {
     q?: string;
     author?: string;

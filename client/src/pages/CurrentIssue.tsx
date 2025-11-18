@@ -4,6 +4,7 @@ import { publicService } from '@/services/publicService';
 import { Issue, Article } from '@/types';
 import ShareButton from '@/components/ui/ShareButton';
 import SubscriptionAlert from '@/components/ui/SubscriptionAlert';
+import { buildPdfUrl } from '@/utils/url';
 
 const CurrentIssue: React.FC = () => {
   const [currentIssue, setCurrentIssue] = useState<Issue | null>(null);
@@ -152,7 +153,7 @@ const CurrentIssue: React.FC = () => {
                       View Article
                     </Link>
                     <a
-                      href={article.pdfPath}
+                      href={buildPdfUrl(article.pdfPath)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="border border-secondary-300 text-secondary-700 px-4 py-2 rounded-md hover:bg-secondary-50 transition-colors text-center text-sm"

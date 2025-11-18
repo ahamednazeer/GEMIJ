@@ -153,6 +153,42 @@ export const getArticle = async (req: Request, res: Response) => {
   }
 };
 
+export const getArticleById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const article = await prisma.article.findUnique({
+      where: { id },
+      include: {
+        issue: true
+      }
+    });
+
+    if (!article) {
+      return res.status(404).json({
+        success: false,
+        error: 'Article not found'
+      });
+    }
+
+    await prisma.article.update({
+      where: { id: article.id },
+      data: { views: article.views + 1 }
+    });
+
+    res.json({
+      success: true,
+      data: article
+    });
+  } catch (error) {
+    console.error('Get article by ID error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
 export const downloadArticle = async (req: Request, res: Response) => {
   try {
     const { doi } = req.params;
@@ -176,6 +212,38 @@ export const downloadArticle = async (req: Request, res: Response) => {
     res.download(article.pdfPath, `${article.doi.replace('/', '_')}.pdf`);
   } catch (error) {
     console.error('Download article error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const downloadArticleById = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const article = await prisma.article.findUnique({
+      where: { id }
+    });
+
+    if (!article) {
+      return res.status(404).json({
+        success: false,
+        error: 'Article not found'
+      });
+    }
+
+    await prisma.article.update({
+      where: { id: article.id },
+      data: { downloads: article.downloads + 1 }
+    });
+
+    const path = require('path');
+    const fullPath = path.join(__dirname, '../../', article.pdfPath);
+    res.download(fullPath, `${article.doi.replace('/', '_')}.pdf`);
+  } catch (error) {
+    console.error('Download article by ID error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error'

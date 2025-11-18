@@ -239,19 +239,185 @@ async function main() {
     }
   });
 
-  console.log('Creating sample issue...');
-  await prisma.issue.upsert({
+  console.log('Creating sample issues and articles...');
+  
+  // Create Issue 1 (Current Issue)
+  const issue1 = await prisma.issue.upsert({
     where: { volume_number: { volume: 1, number: 1 } },
     update: {},
     create: {
       volume: 1,
       number: 1,
-      title: 'Inaugural Issue',
-      description: 'The first issue of our journal featuring cutting-edge research in technology and engineering management.',
+      title: 'Inaugural Issue - Technology and Innovation',
+      description: 'The first issue of our journal featuring cutting-edge research in technology and engineering management, artificial intelligence, and digital transformation.',
       isCurrent: true,
-      publishedAt: new Date()
+      publishedAt: new Date('2024-01-15')
     }
   });
+
+  // Create Issue 2 (Previous Issue)
+  const issue2 = await prisma.issue.upsert({
+    where: { volume_number: { volume: 1, number: 2 } },
+    update: {},
+    create: {
+      volume: 1,
+      number: 2,
+      title: 'Sustainable Engineering Solutions',
+      description: 'Exploring sustainable practices in engineering and technology management for a greener future.',
+      isCurrent: false,
+      publishedAt: new Date('2024-03-15')
+    }
+  });
+
+  // Create Issue 3 (Archive Issue)
+  const issue3 = await prisma.issue.upsert({
+    where: { volume_number: { volume: 1, number: 3 } },
+    update: {},
+    create: {
+      volume: 1,
+      number: 3,
+      title: 'Digital Transformation in Industry 4.0',
+      description: 'Latest developments in digital transformation, IoT, and smart manufacturing systems.',
+      isCurrent: false,
+      publishedAt: new Date('2024-05-15')
+    }
+  });
+
+  // Sample articles for Issue 1 (Current Issue)
+  const articles1 = [
+    {
+      title: 'Artificial Intelligence in Supply Chain Management: A Comprehensive Review',
+      abstract: 'This paper presents a comprehensive review of artificial intelligence applications in supply chain management. We analyze current trends, challenges, and future opportunities in AI-driven supply chain optimization. The study covers machine learning algorithms, predictive analytics, and automation technologies that are transforming modern supply chains.',
+      keywords: ['Artificial Intelligence', 'Supply Chain', 'Machine Learning', 'Optimization', 'Automation'],
+      authors: [
+        { firstName: 'Dr. Sarah', lastName: 'Johnson', affiliation: 'MIT Technology Institute', email: 'sarah.johnson@mit.edu' },
+        { firstName: 'Prof. Michael', lastName: 'Chen', affiliation: 'Stanford University', email: 'michael.chen@stanford.edu' }
+      ],
+      doi: '10.1234/ijatem.2024.001',
+      pages: '1-15',
+      pdfPath: '/uploads/articles/ai-supply-chain-2024.pdf',
+      views: 1250,
+      downloads: 340
+    },
+    {
+      title: 'Blockchain Technology for Secure Data Management in IoT Systems',
+      abstract: 'Internet of Things (IoT) systems generate massive amounts of data that require secure and efficient management. This research proposes a blockchain-based framework for secure data management in IoT environments. We present implementation details, security analysis, and performance evaluation of our proposed system.',
+      keywords: ['Blockchain', 'IoT', 'Data Security', 'Distributed Systems', 'Cryptography'],
+      authors: [
+        { firstName: 'Dr. Ahmed', lastName: 'Hassan', affiliation: 'Cairo University', email: 'ahmed.hassan@cu.edu.eg' },
+        { firstName: 'Dr. Lisa', lastName: 'Wang', affiliation: 'University of Toronto', email: 'lisa.wang@utoronto.ca' }
+      ],
+      doi: '10.1234/ijatem.2024.002',
+      pages: '16-28',
+      pdfPath: '/uploads/articles/blockchain-iot-2024.pdf',
+      views: 980,
+      downloads: 275
+    },
+    {
+      title: 'Machine Learning Approaches for Predictive Maintenance in Manufacturing',
+      abstract: 'Predictive maintenance is crucial for reducing downtime and maintenance costs in manufacturing. This study compares various machine learning approaches for predictive maintenance, including deep learning, ensemble methods, and time series analysis. We evaluate these methods using real industrial datasets.',
+      keywords: ['Predictive Maintenance', 'Machine Learning', 'Manufacturing', 'Deep Learning', 'Time Series'],
+      authors: [
+        { firstName: 'Prof. Robert', lastName: 'Smith', affiliation: 'Georgia Tech', email: 'robert.smith@gatech.edu' },
+        { firstName: 'Dr. Maria', lastName: 'Rodriguez', affiliation: 'Technical University of Madrid', email: 'maria.rodriguez@upm.es' }
+      ],
+      doi: '10.1234/ijatem.2024.003',
+      pages: '29-42',
+      pdfPath: '/uploads/articles/ml-predictive-maintenance-2024.pdf',
+      views: 1450,
+      downloads: 420
+    }
+  ];
+
+  // Sample articles for Issue 2
+  const articles2 = [
+    {
+      title: 'Renewable Energy Integration in Smart Grid Systems',
+      abstract: 'The integration of renewable energy sources into smart grid systems presents both opportunities and challenges. This paper analyzes various integration strategies, grid stability issues, and energy storage solutions for sustainable power systems.',
+      keywords: ['Renewable Energy', 'Smart Grid', 'Energy Storage', 'Grid Stability', 'Sustainability'],
+      authors: [
+        { firstName: 'Dr. Elena', lastName: 'Petrov', affiliation: 'Technical University of Denmark', email: 'elena.petrov@dtu.dk' },
+        { firstName: 'Prof. James', lastName: 'Wilson', affiliation: 'University of California Berkeley', email: 'james.wilson@berkeley.edu' }
+      ],
+      doi: '10.1234/ijatem.2024.004',
+      pages: '1-18',
+      pdfPath: '/uploads/articles/renewable-energy-grid-2024.pdf',
+      views: 890,
+      downloads: 230
+    },
+    {
+      title: 'Sustainable Manufacturing Processes: A Life Cycle Assessment Approach',
+      abstract: 'This research presents a comprehensive life cycle assessment of sustainable manufacturing processes. We analyze environmental impacts, resource consumption, and waste generation across different manufacturing scenarios to identify best practices for sustainable production.',
+      keywords: ['Sustainable Manufacturing', 'Life Cycle Assessment', 'Environmental Impact', 'Resource Efficiency', 'Waste Management'],
+      authors: [
+        { firstName: 'Dr. Thomas', lastName: 'Mueller', affiliation: 'Technical University of Munich', email: 'thomas.mueller@tum.de' },
+        { firstName: 'Dr. Priya', lastName: 'Sharma', affiliation: 'Indian Institute of Technology Delhi', email: 'priya.sharma@iitd.ac.in' }
+      ],
+      doi: '10.1234/ijatem.2024.005',
+      pages: '19-35',
+      pdfPath: '/uploads/articles/sustainable-manufacturing-lca-2024.pdf',
+      views: 720,
+      downloads: 185
+    }
+  ];
+
+  // Sample articles for Issue 3
+  const articles3 = [
+    {
+      title: 'Digital Twin Technology in Industry 4.0: Applications and Challenges',
+      abstract: 'Digital twin technology is revolutionizing industrial processes by creating virtual replicas of physical systems. This paper explores current applications, implementation challenges, and future prospects of digital twins in Industry 4.0 environments.',
+      keywords: ['Digital Twin', 'Industry 4.0', 'Virtual Reality', 'Simulation', 'Digital Transformation'],
+      authors: [
+        { firstName: 'Prof. Hans', lastName: 'Schmidt', affiliation: 'RWTH Aachen University', email: 'hans.schmidt@rwth-aachen.de' },
+        { firstName: 'Dr. Yuki', lastName: 'Tanaka', affiliation: 'University of Tokyo', email: 'yuki.tanaka@u-tokyo.ac.jp' }
+      ],
+      doi: '10.1234/ijatem.2024.006',
+      pages: '1-22',
+      pdfPath: '/uploads/articles/digital-twin-industry40-2024.pdf',
+      views: 1100,
+      downloads: 310
+    }
+  ];
+
+  // Create articles for each issue
+  for (const articleData of articles1) {
+    await prisma.article.upsert({
+      where: { doi: articleData.doi },
+      update: {},
+      create: {
+        ...articleData,
+        authors: articleData.authors,
+        issueId: issue1.id,
+        publishedAt: new Date('2024-01-15')
+      }
+    });
+  }
+
+  for (const articleData of articles2) {
+    await prisma.article.upsert({
+      where: { doi: articleData.doi },
+      update: {},
+      create: {
+        ...articleData,
+        authors: articleData.authors,
+        issueId: issue2.id,
+        publishedAt: new Date('2024-03-15')
+      }
+    });
+  }
+
+  for (const articleData of articles3) {
+    await prisma.article.upsert({
+      where: { doi: articleData.doi },
+      update: {},
+      create: {
+        ...articleData,
+        authors: articleData.authors,
+        issueId: issue3.id,
+        publishedAt: new Date('2024-05-15')
+      }
+    });
+  }
 
   console.log('Database seeded successfully!');
 }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { publicService } from '@/services/publicService';
 import { Article } from '@/types';
+import { buildPdfUrl } from '@/utils/url';
 
 
 
@@ -390,7 +391,7 @@ const Search: React.FC = () => {
                               View Article
                             </Link>
                             <a
-                              href={result.pdfPath}
+                              href={buildPdfUrl(result.pdfPath)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="border border-secondary-300 text-secondary-700 px-4 py-2 rounded-md hover:bg-secondary-50 transition-colors text-sm text-center"

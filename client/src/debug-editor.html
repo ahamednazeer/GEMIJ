@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Editor API</title>
+</head>
+<body>
+    <h1>Debug Editor API</h1>
+    <button onclick="testLogin()">Test Login</button>
+    <button onclick="testSubmissions()">Test Submissions</button>
+    <div id="output"></div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+        let token = null;
+
+        async function testLogin() {
+            try {
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'editor@journal.com',
+                        password: 'editor123'
+                    })
+                });
+                
+                const data = await response.json();
+                console.log('Login response:', data);
+                
+                if (data.success) {
+                    token = data.data.token;
+                    document.getElementById('output').innerHTML = `
+                        <h3>Login Success</h3>
+                        <p>User: ${data.data.user.firstName} ${data.data.user.lastName}</p>
+                        <p>Role: ${data.data.user.role}</p>
+                        <p>Token: ${token.substring(0, 50)}...</p>
+                    `;
+                } else {
+                    document.getElementById('output').innerHTML = `<h3>Login Failed</h3><p>${data.error}</p>`;
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                document.getElementById('output').innerHTML = `<h3>Login Error</h3><p>${error.message}</p>`;
+            }
+        }
+
+        async function testSubmissions() {
+            if (!token) {
+                alert('Please login first');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/editor/submissions`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                console.log('Submissions response:', data);
+                
+                if (data.success) {
+                    document.getElementById('output').innerHTML += `
+                        <h3>Submissions Success</h3>
+                        <p>Found ${data.data.length} submissions</p>
+                        <pre>${JSON.stringify(data.data, null, 2)}</pre>
+                    `;
+                } else {
+                    document.getElementById('output').innerHTML += `<h3>Submissions Failed</h3><p>${data.error}</p>`;
+                }
+            } catch (error) {
+                console.error('Submissions error:', error);
+                document.getElementById('output').innerHTML += `<h3>Submissions Error</h3><p>${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

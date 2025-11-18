@@ -36,6 +36,12 @@ enum ReviewStatus {
   OVERDUE
 }
 
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
 enum PaymentStatus {
   PENDING
   PAID
@@ -155,6 +161,7 @@ model Review {
   reviewer      User       @relation(fields: [reviewerId], references: [id])
   submissionId  String
   submission    Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  invitation    ReviewerInvitation?
 
   @@map("reviews")
 }
@@ -252,6 +259,19 @@ model Article {
   issue        Issue    @relation(fields: [issueId], references: [id])
 
   @@map("articles")
+}
+
+model ReviewerInvitation {
+  id            String             @id @default(cuid())
+  status        InvitationStatus   @default(PENDING)
+  invitedAt     DateTime           @default(now())
+  respondedAt   DateTime?
+  responseNotes String?
+
+  reviewId      String             @unique
+  review        Review             @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@map("reviewer_invitations")
 }
 
 model Notification {

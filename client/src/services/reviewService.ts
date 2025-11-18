@@ -79,6 +79,31 @@ class ReviewService {
     const response = await axios.get<ApiResponse<any>>(`${API_URL}/reviews/stats`);
     return response.data.data!;
   }
+
+  async getPendingInvitations(params?: {
+    page?: number;
+    limit?: number;
+  }): Promise<{ invitations: any[]; pagination: any }> {
+    const response = await axios.get<ApiResponse<any[]>>(`${API_URL}/reviews/invitations/pending`, { params });
+    return {
+      invitations: response.data.data!,
+      pagination: response.data.pagination!
+    };
+  }
+
+  async acceptInvitation(invitationId: string, responseNotes?: string): Promise<any> {
+    const response = await axios.post<ApiResponse<any>>(`${API_URL}/reviews/invitations/${invitationId}/accept`, {
+      responseNotes
+    });
+    return response.data.data!;
+  }
+
+  async declineInvitation(invitationId: string, responseNotes?: string): Promise<any> {
+    const response = await axios.post<ApiResponse<any>>(`${API_URL}/reviews/invitations/${invitationId}/decline`, {
+      responseNotes
+    });
+    return response.data.data!;
+  }
 }
 
 export const reviewService = new ReviewService();

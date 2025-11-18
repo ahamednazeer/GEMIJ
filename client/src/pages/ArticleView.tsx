@@ -5,6 +5,7 @@ import ShareButton from '@/components/ui/ShareButton';
 import ContactForm from '@/components/ui/ContactForm';
 import { publicService } from '@/services/publicService';
 import { Article } from '@/types';
+import { buildPdfUrl } from '@/utils/url';
 
 
 
@@ -23,7 +24,7 @@ const ArticleView: React.FC = () => {
       try {
         setIsLoading(true);
         setError(null);
-        const articleData = await publicService.getArticle(id);
+        const articleData = await publicService.getArticleById(id);
         setArticle(articleData);
       } catch (error) {
         console.error('Failed to fetch article:', error);
@@ -182,7 +183,7 @@ ER  -`;
         
         <div className="flex space-x-4">
           <a
-            href={article.pdfPath}
+            href={buildPdfUrl(article.pdfPath)}
             target="_blank"
             rel="noopener noreferrer"
             className="bg-primary-600 text-white px-6 py-2 rounded-md hover:bg-primary-700 transition-colors"
@@ -278,7 +279,7 @@ ER  -`;
                 <span className="text-secondary-700">Embedded PDF Viewer</span>
                 <div className="flex space-x-2">
                   <a
-                    href={article.pdfUrl}
+                    href={buildPdfUrl(article.pdfPath)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary-600 hover:text-primary-700 text-sm"
@@ -286,7 +287,7 @@ ER  -`;
                     Open in New Tab
                   </a>
                   <a
-                    href={article.pdfUrl}
+                    href={buildPdfUrl(article.pdfPath)}
                     download
                     className="text-primary-600 hover:text-primary-700 text-sm"
                   >
@@ -296,7 +297,7 @@ ER  -`;
               </div>
               <div className="border border-secondary-200 rounded-lg overflow-hidden">
                 <iframe
-                  src={`${article.pdfPath}#toolbar=1&navpanes=1&scrollbar=1`}
+                  src={`${buildPdfUrl(article.pdfPath)}#toolbar=1&navpanes=1&scrollbar=1`}
                   className="w-full h-96 md:h-[600px]"
                   title="Article PDF"
                 />

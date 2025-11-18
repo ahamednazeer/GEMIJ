@@ -395,3 +395,214 @@ export const updateReview = async (req: AuthenticatedRequest, res: Response) => 
     });
   }
 };
+
+export const getPendingInvitations = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const reviewerId = req.user!.id;
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const [invitations, total] = await Promise.all([
+      prisma.reviewerInvitation.findMany({
+        where: {
+          status: 'PENDING',
+          review: {
+            reviewerId
+          }
+        },
+        skip,
+        take: Number(limit),
+        orderBy: { invitedAt: 'desc' },
+        include: {
+          review: {
+            include: {
+              submission: {
+                select: {
+                  id: true,
+                  title: true,
+                  abstract: true,
+                  status: true,
+                  author: {
+                    select: {
+                      id: true,
+                      firstName: true,
+                      lastName: true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }),
+      prisma.reviewerInvitation.count({
+        where: {
+          status: 'PENDING',
+          review: {
+            reviewerId
+          }
+        }
+      })
+    ]);
+
+    res.json({
+      success: true,
+      data: invitations,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        totalPages: Math.ceil(total / Number(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Get pending invitations error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const acceptInvitation = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { invitationId } = req.params;
+    const { responseNotes } = req.body;
+
+    const invitation = await prisma.reviewerInvitation.findUnique({
+      where: { id: invitationId },
+      include: {
+        review: true
+      }
+    });
+
+    if (!invitation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invitation not found'
+      });
+    }
+
+    if (invitation.review.reviewerId !== req.user!.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to accept this invitation'
+      });
+    }
+
+    if (invitation.status !== 'PENDING') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invitation has already been responded to'
+      });
+    }
+
+    const [updatedInvitation] = await Promise.all([
+      prisma.reviewerInvitation.update({
+        where: { id: invitationId },
+        data: {
+          status: 'ACCEPTED',
+          respondedAt: new Date(),
+          responseNotes
+        },
+        include: {
+          review: {
+            include: {
+              submission: true
+            }
+          }
+        }
+      }),
+      prisma.review.update({
+        where: { id: invitation.review.id },
+        data: {
+          status: 'IN_PROGRESS',
+          acceptedAt: new Date()
+        }
+      })
+    ]);
+
+    res.json({
+      success: true,
+      data: updatedInvitation,
+      message: 'Invitation accepted successfully'
+    });
+  } catch (error) {
+    console.error('Accept invitation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const declineInvitation = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { invitationId } = req.params;
+    const { responseNotes } = req.body;
+
+    const invitation = await prisma.reviewerInvitation.findUnique({
+      where: { id: invitationId },
+      include: {
+        review: true
+      }
+    });
+
+    if (!invitation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Invitation not found'
+      });
+    }
+
+    if (invitation.review.reviewerId !== req.user!.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to decline this invitation'
+      });
+    }
+
+    if (invitation.status !== 'PENDING') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invitation has already been responded to'
+      });
+    }
+
+    const [updatedInvitation] = await Promise.all([
+      prisma.reviewerInvitation.update({
+        where: { id: invitationId },
+        data: {
+          status: 'DECLINED',
+          respondedAt: new Date(),
+          responseNotes
+        },
+        include: {
+          review: {
+            include: {
+              submission: true
+            }
+          }
+        }
+      }),
+      prisma.review.update({
+        where: { id: invitation.review.id },
+        data: {
+          status: 'DECLINED'
+        }
+      })
+    ]);
+
+    res.json({
+      success: true,
+      data: updatedInvitation,
+      message: 'Invitation declined successfully'
+    });
+  } catch (error) {
+    console.error('Decline invitation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
