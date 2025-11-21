@@ -929,7 +929,7 @@ export const generateCertificate = async (req: AuthenticatedRequest, res: Respon
     });
     doc.moveDown();
 
-    doc.fontSize(24).font('Helvetica-Bold').text(`${review.reviewer.firstName} ${review.reviewer.lastName}`, {
+    doc.fontSize(24).font('Helvetica-Bold').text(`${review!.reviewer.firstName} ${review!.reviewer.lastName}`, {
       align: 'center'
     });
     doc.moveDown();
@@ -944,12 +944,13 @@ export const generateCertificate = async (req: AuthenticatedRequest, res: Respon
     });
     doc.moveDown();
 
-    doc.fontSize(14).font('Helvetica').text(`Manuscript Title: ${review.submission.title}`, {
+    doc.fontSize(14).font('Helvetica').text(`Manuscript Title: ${review!.submission.title}`, {
       align: 'center'
     });
     doc.moveDown();
 
-    doc.fontSize(14).text(`Date of Review: ${review.submittedAt ? new Date(review.submittedAt).toLocaleDateString() : new Date().toLocaleDateString()}`, {
+    const reviewDate = review!.submittedAt ? new Date(review!.submittedAt) : new Date();
+    doc.fontSize(14).text(`Date of Review: ${reviewDate.toLocaleDateString()}`, {
       align: 'center'
     });
     doc.moveDown(2);
@@ -969,5 +970,6 @@ export const generateCertificate = async (req: AuthenticatedRequest, res: Respon
         error: 'Internal server error'
       });
     }
+    return;
   }
 };

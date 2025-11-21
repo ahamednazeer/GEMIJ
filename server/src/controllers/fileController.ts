@@ -10,7 +10,7 @@ export const uploadFiles = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id: submissionId } = req.params;
     const uploadedFiles = req.files as { [fieldname: string]: Express.Multer.File[] };
-    
+
     // Extract files from either 'file' or 'files' field
     let files: Express.Multer.File[] = [];
     if (uploadedFiles.file) {
@@ -19,7 +19,7 @@ export const uploadFiles = async (req: AuthenticatedRequest, res: Response) => {
     if (uploadedFiles.files) {
       files = files.concat(uploadedFiles.files);
     }
-    
+
     if (!files || files.length === 0) {
       return res.status(400).json({
         success: false,
@@ -61,14 +61,14 @@ export const uploadFiles = async (req: AuthenticatedRequest, res: Response) => {
       })
     );
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: fileRecords,
       message: 'Files uploaded successfully'
     });
   } catch (error) {
     console.error('Upload files error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -78,7 +78,7 @@ export const uploadFiles = async (req: AuthenticatedRequest, res: Response) => {
 export const deleteFile = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { fileId } = req.params;
-    
+
     const file = await prisma.submissionFile.findUnique({
       where: { id: fileId },
       include: {
@@ -117,13 +117,13 @@ export const deleteFile = async (req: AuthenticatedRequest, res: Response) => {
       where: { id: fileId }
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'File deleted successfully'
     });
   } catch (error) {
     console.error('Delete file error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -133,7 +133,7 @@ export const deleteFile = async (req: AuthenticatedRequest, res: Response) => {
 export const downloadFile = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { fileId } = req.params;
-    
+
     const file = await prisma.submissionFile.findUnique({
       where: { id: fileId },
       include: {
@@ -161,7 +161,7 @@ export const downloadFile = async (req: AuthenticatedRequest, res: Response) => 
       });
     }
 
-    const hasAccess = 
+    const hasAccess =
       file.submission.authorId === req.user!.id ||
       file.submission.reviews.length > 0 ||
       file.submission.editorAssignments.length > 0 ||
@@ -176,7 +176,7 @@ export const downloadFile = async (req: AuthenticatedRequest, res: Response) => 
 
     try {
       await fs.access(file.filePath);
-      res.download(file.filePath, file.originalName);
+      return res.download(file.filePath, file.originalName);
     } catch (fsError) {
       return res.status(404).json({
         success: false,
@@ -185,7 +185,7 @@ export const downloadFile = async (req: AuthenticatedRequest, res: Response) => 
     }
   } catch (error) {
     console.error('Download file error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });

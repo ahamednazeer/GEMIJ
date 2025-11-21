@@ -106,7 +106,7 @@ export const createPaymentIntent = async (req: AuthenticatedRequest, res: Respon
       );
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         clientSecret: paymentIntent.client_secret,
@@ -118,7 +118,7 @@ export const createPaymentIntent = async (req: AuthenticatedRequest, res: Respon
     });
   } catch (error) {
     console.error('Create payment intent error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -169,20 +169,20 @@ export const confirmPayment = async (req: AuthenticatedRequest, res: Response) =
         }
       });
 
-      res.json({
+      return res.json({
         success: true,
         data: updatedPayment,
         message: 'Payment confirmed successfully'
       });
     } else {
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         error: 'Payment not completed'
       });
     }
   } catch (error) {
     console.error('Confirm payment error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -208,13 +208,13 @@ export const getPaymentStatus = async (req: AuthenticatedRequest, res: Response)
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: payment
     });
   } catch (error) {
     console.error('Get payment status error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -260,13 +260,13 @@ export const getPaymentById = async (req: AuthenticatedRequest, res: Response) =
       amount: payment.amount.toNumber ? payment.amount.toNumber() : payment.amount
     };
 
-    res.json({
+    return res.json({
       success: true,
       data: formattedPayment
     });
   } catch (error) {
     console.error('Get payment by ID error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -399,10 +399,10 @@ export const handleWebhook = async (req: any, res: Response) => {
         console.log(`Unhandled event type: ${event.type}`);
     }
 
-    res.json({ received: true });
+    return res.json({ received: true });
   } catch (error) {
     console.error('Webhook processing error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Webhook processing failed'
     });
@@ -427,13 +427,13 @@ export const getPaymentHistory = async (req: AuthenticatedRequest, res: Response
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: payments
     });
   } catch (error) {
     console.error('Get payment history error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -520,7 +520,7 @@ export const uploadProof = async (req: AuthenticatedRequest, res: Response) => {
       );
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: payment,
       message: 'Payment proof uploaded successfully. Waiting for verification.'
@@ -528,7 +528,7 @@ export const uploadProof = async (req: AuthenticatedRequest, res: Response) => {
 
   } catch (error) {
     console.error('Upload proof error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });

@@ -3,12 +3,14 @@ import bcrypt from 'bcryptjs';
 import { UserRole } from '@prisma/client';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '7d';
 
 export interface JWTPayload {
   id: string;
   email: string;
   role: UserRole;
+  firstName: string;
+  lastName: string;
 }
 
 export const hashPassword = async (password: string): Promise<string> => {
@@ -21,7 +23,7 @@ export const comparePassword = async (password: string, hashedPassword: string):
 };
 
 export const generateToken = (payload: JWTPayload): string => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions);
 };
 
 export const verifyToken = (token: string): JWTPayload => {

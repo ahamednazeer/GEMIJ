@@ -368,12 +368,11 @@ export const submitForReview = async (req: AuthenticatedRequest, res: Response) 
 
     // Send confirmation email to author
     try {
-      const emailService = new EmailService();
-      await emailService.sendEmail({
+      await EmailService.sendEmail({
         to: updatedSubmission.author.email,
         subject: 'Submission Received - Confirmation',
         template: 'submission_received',
-        data: {
+        variables: {
           authorName: `${updatedSubmission.author.firstName} ${updatedSubmission.author.lastName}`,
           manuscriptTitle: updatedSubmission.title,
           submissionId: updatedSubmission.id,
@@ -750,17 +749,15 @@ export const approveProof = async (req: AuthenticatedRequest, res: Response) => 
 
     let newStatus = submission.status;
     if (approved) {
-      newStatus = SubmissionStatus.PUBLISHED; // Auto-publish? Or maybe 'PROOF_APPROVED'? Schema doesn't have PROOF_APPROVED.
-      // Let's set to 'PUBLISHED' for now as per the flow "Author approves -> Published".
-      // Or maybe it goes to a production queue?
-      // The user flow says: "Author receives proof PDF -> Approves final version -> Article published with DOI -> Author gets Published email -> Status: PUBLISHED"
-      // So setting to PUBLISHED seems correct for this simplified flow.
+      newStatus = SubmissionStatus.ACCEPTED; // Keep as ACCEPTED - actual publishing happens separately
+      // The schema doesn't have PUBLISHED in SubmissionStatus enum
+      // Publishing is handled through the Article model after payment and final approval
     } else {
       // Request corrections
       // Maybe stay in ACCEPTED but add comments? Or is there a specific status?
       // Schema has: DRAFT, SUBMITTED, INITIAL_REVIEW, UNDER_REVIEW, REVISION_REQUIRED, REVISED, ACCEPTED, REJECTED, PUBLISHED, WITHDRAWN.
       // No 'CORRECTIONS_REQUIRED'.
-      // Let's keep it as ACCEPTED but maybe update a flag or just save the comments?
+      // Let's keep it as ACCEPTED but maybe add comments? Or is there a specific status?
       // The `ProofReview.tsx` sends comments.
       // Let's just update comments and maybe keep status as ACCEPTED.
       // Or maybe we need to notify the editor?

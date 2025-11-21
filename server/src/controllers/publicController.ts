@@ -22,13 +22,13 @@ export const getCurrentIssue = async (req: Request, res: Response) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: currentIssue
     });
   } catch (error) {
     console.error('Get current issue error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -60,7 +60,7 @@ export const getArchive = async (req: Request, res: Response) => {
       })
     ]);
 
-    res.json({
+    return res.json({
       success: true,
       data: issues,
       pagination: {
@@ -72,7 +72,7 @@ export const getArchive = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Get archive error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -104,13 +104,13 @@ export const getIssue = async (req: Request, res: Response) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: issue
     });
   } catch (error) {
     console.error('Get issue error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -140,13 +140,13 @@ export const getArticle = async (req: Request, res: Response) => {
       data: { views: article.views + 1 }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: article
     });
   } catch (error) {
     console.error('Get article error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -179,13 +179,13 @@ export const getArticleById = async (req: Request, res: Response) => {
       data: { views: article.views + 1 }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: article
     });
   } catch (error) {
     console.error('Get article by ID error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -212,10 +212,10 @@ export const downloadArticle = async (req: Request, res: Response) => {
       data: { downloads: article.downloads + 1 }
     });
 
-    res.download(article.pdfPath, `${article.doi.replace('/', '_')}.pdf`);
+    return res.download(article.pdfPath, `${article.doi.replace('/', '_')}.pdf`);
   } catch (error) {
     console.error('Download article error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -244,10 +244,10 @@ export const downloadArticleById = async (req: Request, res: Response) => {
 
     const path = require('path');
     const fullPath = path.join(__dirname, '../../', article.pdfPath);
-    res.download(fullPath, `${article.doi.replace('/', '_')}.pdf`);
+    return res.download(fullPath, `${article.doi.replace('/', '_')}.pdf`);
   } catch (error) {
     console.error('Download article by ID error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -304,7 +304,7 @@ export const searchArticles = async (req: Request, res: Response) => {
       prisma.article.count({ where })
     ]);
 
-    res.json({
+    return res.json({
       success: true,
       data: articles,
       pagination: {
@@ -316,7 +316,7 @@ export const searchArticles = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Search articles error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -363,7 +363,7 @@ export const getJournalStats = async (req: Request, res: Response) => {
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         totalArticles,
@@ -376,7 +376,7 @@ export const getJournalStats = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Get journal stats error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -398,13 +398,13 @@ export const getLandingPageConfig = async (req: Request, res: Response) => {
 
     const config = JSON.parse(setting.value);
 
-    res.json({
+    return res.json({
       success: true,
       data: config
     });
   } catch (error) {
     console.error('Get landing page config error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -457,13 +457,13 @@ export const getPublicSettings = async (req: Request, res: Response) => {
       settingsObject[mappedKey] = value;
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: settingsObject
     });
   } catch (error) {
     console.error('Get public settings error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });

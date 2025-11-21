@@ -61,10 +61,12 @@ export const register = async (req: Request, res: Response) => {
     const token = generateToken({
       id: user.id,
       email: user.email,
-      role: user.role
+      role: user.role,
+      firstName: user.firstName,
+      lastName: user.lastName
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       data: {
         user,
@@ -82,7 +84,7 @@ export const register = async (req: Request, res: Response) => {
     }
 
     console.error('Registration error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -121,10 +123,12 @@ export const login = async (req: Request, res: Response) => {
     const token = generateToken({
       id: user.id,
       email: user.email,
-      role: user.role
+      role: user.role,
+      firstName: user.firstName,
+      lastName: user.lastName
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         user: {
@@ -149,7 +153,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     console.error('Login error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -184,13 +188,13 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: user
     });
   } catch (error) {
     console.error('Get profile error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -229,7 +233,7 @@ export const updateProfile = async (req: AuthenticatedRequest, res: Response) =>
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: user,
       message: 'Profile updated successfully'
@@ -244,7 +248,7 @@ export const updateProfile = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     console.error('Update profile error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -287,13 +291,13 @@ export const forgotPassword = async (req: Request, res: Response) => {
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
     await EmailService.sendPasswordResetEmail(user.email, resetUrl, `${user.firstName} ${user.lastName}`);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Password reset email sent'
     });
   } catch (error) {
     console.error('Forgot password error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -345,13 +349,13 @@ export const resetPassword = async (req: Request, res: Response) => {
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Password reset successfully'
     });
   } catch (error) {
     console.error('Reset password error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });

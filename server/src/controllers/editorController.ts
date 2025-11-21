@@ -896,12 +896,11 @@ export const performInitialScreening = async (req: AuthenticatedRequest, res: Re
 
     // Send notification email to author
     try {
-      const emailService = new EmailService();
-      await emailService.sendEmail({
+      await EmailService.sendEmail({
         to: submission.author.email,
         subject: emailSubject,
         template: emailTemplate,
-        data: {
+        variables: {
           authorName: `${submission.author.firstName} ${submission.author.lastName}`,
           manuscriptTitle: submission.title,
           submissionId: submission.id,

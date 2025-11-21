@@ -6,7 +6,7 @@ import { UserRole } from '@prisma/client';
 export const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         success: false,
@@ -16,7 +16,7 @@ export const authenticate = (req: AuthenticatedRequest, res: Response, next: Nex
 
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
-    
+
     req.user = decoded;
     next();
   } catch (error) {
@@ -50,13 +50,13 @@ export const authorize = (...roles: UserRole[]) => {
 export const optionalAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       const decoded = verifyToken(token);
       req.user = decoded;
     }
-    
+
     next();
   } catch (error) {
     next();

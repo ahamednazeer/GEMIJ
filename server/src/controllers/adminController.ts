@@ -78,7 +78,7 @@ export const getAdminStats = async (req: AuthenticatedRequest, res: Response) =>
       systemHealth = 'warning';
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         totalUsers,
@@ -95,7 +95,7 @@ export const getAdminStats = async (req: AuthenticatedRequest, res: Response) =>
     });
   } catch (error) {
     console.error('Get admin stats error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -221,7 +221,7 @@ export const getSubmissionStats = async (req: AuthenticatedRequest, res: Respons
       };
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         totalSubmissions,
@@ -235,7 +235,7 @@ export const getSubmissionStats = async (req: AuthenticatedRequest, res: Respons
     });
   } catch (error) {
     console.error('Get submission stats error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -267,7 +267,7 @@ export const getUserActivityStats = async (req: AuthenticatedRequest, res: Respo
       })
     ]);
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         period,
@@ -277,7 +277,7 @@ export const getUserActivityStats = async (req: AuthenticatedRequest, res: Respo
     });
   } catch (error) {
     console.error('Get user activity stats error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -363,14 +363,14 @@ export const getAdminPayments = async (req: AuthenticatedRequest, res: Response)
       };
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: formattedPayments,
       pagination: buildPaginationMeta(page, limit, total)
     });
   } catch (error) {
     console.error('Get admin payments error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -475,14 +475,14 @@ export const getAdminUsers = async (req: AuthenticatedRequest, res: Response) =>
       reviewsCount: user._count.reviews
     }));
 
-    res.json({
+    return res.json({
       success: true,
       data: formattedUsers,
       pagination: buildPaginationMeta(page, limit, total)
     });
   } catch (error) {
     console.error('Get admin users error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -544,7 +544,7 @@ export const getSystemHealth = async (req: AuthenticatedRequest, res: Response) 
     const lastBackupEnv = process.env.LAST_BACKUP_AT ? new Date(process.env.LAST_BACKUP_AT) : null;
     const lastBackup = lastBackupEnv && !isNaN(lastBackupEnv.getTime()) ? lastBackupEnv : defaultBackup;
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         status: systemStatus,
@@ -561,7 +561,7 @@ export const getSystemHealth = async (req: AuthenticatedRequest, res: Response) 
     });
   } catch (error) {
     console.error('Get system health error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -644,7 +644,7 @@ export const getFinancialStats = async (req: AuthenticatedRequest, res: Response
       };
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         period,
@@ -664,7 +664,7 @@ export const getFinancialStats = async (req: AuthenticatedRequest, res: Response
     });
   } catch (error) {
     console.error('Get financial stats error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -703,13 +703,13 @@ export const getSystemSettings = async (req: AuthenticatedRequest, res: Response
       settingsObject[mappedKey] = value;
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: settingsObject
     });
   } catch (error) {
     console.error('Get system settings error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -766,14 +766,14 @@ export const getAdminIssues = async (req: AuthenticatedRequest, res: Response) =
       articlesCount: issue._count.articles
     }));
 
-    res.json({
+    return res.json({
       success: true,
       data: formattedIssues,
       pagination: buildPaginationMeta(page, limit, total)
     });
   } catch (error) {
     console.error('Get admin issues error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -805,13 +805,13 @@ export const updateLandingPageConfig = async (req: AuthenticatedRequest, res: Re
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Landing page configuration updated successfully'
     });
   } catch (error) {
     console.error('Update landing page config error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -866,13 +866,13 @@ export const updateSystemSettings = async (req: AuthenticatedRequest, res: Respo
 
     await Promise.all(updates);
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Settings updated successfully'
     });
   } catch (error) {
     console.error('Update system settings error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -900,14 +900,14 @@ export const uploadPaymentQrCode = async (req: AuthenticatedRequest, res: Respon
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: { url: filePath },
       message: 'QR code uploaded successfully'
     });
   } catch (error) {
     console.error('Upload payment QR code error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -963,13 +963,13 @@ export const getPaymentById = async (req: AuthenticatedRequest, res: Response) =
       proofUrl: payment.proofUrl
     };
 
-    res.json({
+    return res.json({
       success: true,
       data: formattedPayment
     });
   } catch (error) {
     console.error('Get payment by id error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1059,7 +1059,7 @@ export const markPaymentAsPaid = async (req: AuthenticatedRequest, res: Response
     // But the user expects the flow to work.
     // I will add imports in a separate `replace_file_content` call at the top of the file.
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedPayment,
       message: 'Payment marked as paid successfully'
@@ -1067,7 +1067,7 @@ export const markPaymentAsPaid = async (req: AuthenticatedRequest, res: Response
 
   } catch (error) {
     console.error('Mark payment as paid error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
