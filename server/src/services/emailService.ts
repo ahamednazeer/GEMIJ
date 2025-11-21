@@ -7,15 +7,19 @@ const prisma = new PrismaClient();
 
 // Initialize SendGrid with API key
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-if (!SENDGRID_API_KEY) {
-  throw new Error('SENDGRID_API_KEY environment variable is not set');
+if (SENDGRID_API_KEY) {
+  sgMail.setApiKey(SENDGRID_API_KEY);
 }
-sgMail.setApiKey(SENDGRID_API_KEY);
 
 
 export class EmailService {
   static async sendEmail(data: EmailTemplateData): Promise<void> {
     try {
+      // Check if SendGrid is configured
+      if (!SENDGRID_API_KEY) {
+        console.log(`Email would be sent to ${data.to} with template ${data.template} (SendGrid not configured)`);
+        return;
+      }
       const template = await prisma.emailTemplate.findUnique({
         where: { name: data.template }
       });
