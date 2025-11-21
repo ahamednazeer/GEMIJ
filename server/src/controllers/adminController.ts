@@ -679,6 +679,13 @@ export const getSystemSettings = async (req: AuthenticatedRequest, res: Response
 
     // Convert to key-value object
     const settingsObject: Record<string, any> = {};
+
+    // Key mapping for legacy database keys
+    const keyMap: Record<string, string> = {
+      'apc_amount': 'apcFee',
+      'apc_currency': 'currency'
+    };
+
     settings.forEach(setting => {
       let value: any = setting.value;
 
@@ -691,7 +698,9 @@ export const getSystemSettings = async (req: AuthenticatedRequest, res: Response
         value = parseFloat(setting.value);
       }
 
-      settingsObject[setting.key] = value;
+      // Use mapped key if available, otherwise use original key
+      const mappedKey = keyMap[setting.key] || setting.key;
+      settingsObject[mappedKey] = value;
     });
 
     res.json({
@@ -813,6 +822,12 @@ export const updateSystemSettings = async (req: AuthenticatedRequest, res: Respo
   try {
     const settings = req.body;
 
+    // Reverse key mapping for saving (frontend → database)
+    const reverseKeyMap: Record<string, string> = {
+      'apcFee': 'apc_amount',
+      'currency': 'apc_currency'
+    };
+
     // Process each setting
     const updates = Object.entries(settings).map(async ([key, value]) => {
       // Determine type
@@ -825,11 +840,28 @@ export const updateSystemSettings = async (req: AuthenticatedRequest, res: Respo
         type = 'boolean';
       }
 
-      return prisma.systemSettings.upsert({
-        where: { key },
-        update: { value: stringValue, type },
-        create: { key, value: stringValue, type }
-      });
+      // Save with the original key
+      const savePromises = [
+        prisma.systemSettings.upsert({
+          where: { key },
+          update: { value: stringValue, type },
+          create: { key, value: stringValue, type }
+        })
+      ];
+
+      // Also save with legacy key if mapping exists
+      const legacyKey = reverseKeyMap[key];
+      if (legacyKey) {
+        savePromises.push(
+          prisma.systemSettings.upsert({
+            where: { key: legacyKey },
+            update: { value: stringValue, type: type === 'number' ? 'decimal' : type },
+            create: { key: legacyKey, value: stringValue, type: type === 'number' ? 'decimal' : type }
+          })
+        );
+      }
+
+      return Promise.all(savePromises);
     });
 
     await Promise.all(updates);

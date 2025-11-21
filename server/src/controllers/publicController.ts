@@ -419,7 +419,9 @@ export const getPublicSettings = async (req: Request, res: Response) => {
       'journalDescription',
       'contactEmail',
       'apcFee',
+      'apc_amount', // Legacy key
       'currency',
+      'apc_currency', // Legacy key
       'bankAccountName',
       'bankAccountNumber',
       'bankName',
@@ -437,12 +439,22 @@ export const getPublicSettings = async (req: Request, res: Response) => {
     });
 
     const settingsObject: Record<string, any> = {};
+
+    // Key mapping for legacy database keys
+    const keyMap: Record<string, string> = {
+      'apc_amount': 'apcFee',
+      'apc_currency': 'currency'
+    };
+
     settings.forEach(setting => {
       let value: any = setting.value;
       if (setting.type === 'number') value = parseFloat(setting.value);
       else if (setting.type === 'boolean') value = setting.value === 'true';
+      else if (setting.type === 'decimal') value = parseFloat(setting.value);
 
-      settingsObject[setting.key] = value;
+      // Use mapped key if available, otherwise use original key
+      const mappedKey = keyMap[setting.key] || setting.key;
+      settingsObject[mappedKey] = value;
     });
 
     res.json({

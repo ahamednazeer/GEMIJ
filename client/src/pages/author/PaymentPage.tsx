@@ -122,7 +122,7 @@ const PaymentPage: React.FC = () => {
     }).format(amount);
   };
 
-  const apcFee = settings?.apcFee || 2500;
+  const apcFee = settings?.apcFee || 299;
 
   return (
     <div className="min-h-screen bg-secondary-50">
@@ -324,8 +324,8 @@ const PaymentPage: React.FC = () => {
                         type="button"
                         onClick={() => setPaymentMethod('BANK_TRANSFER')}
                         className={`p-4 border-2 rounded-lg text-left transition-all ${paymentMethod === 'BANK_TRANSFER'
-                            ? 'border-primary-500 bg-primary-50'
-                            : 'border-secondary-200 hover:border-secondary-300'
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-secondary-200 hover:border-secondary-300'
                           }`}
                       >
                         <div className="flex items-center mb-2">
@@ -340,8 +340,8 @@ const PaymentPage: React.FC = () => {
                         type="button"
                         onClick={() => setPaymentMethod('UPI')}
                         className={`p-4 border-2 rounded-lg text-left transition-all ${paymentMethod === 'UPI'
-                            ? 'border-primary-500 bg-primary-50'
-                            : 'border-secondary-200 hover:border-secondary-300'
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-secondary-200 hover:border-secondary-300'
                           }`}
                       >
                         <div className="flex items-center mb-2">
