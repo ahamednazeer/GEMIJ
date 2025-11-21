@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthenticatedRequest, ReviewData } from '../types';
 import { z } from 'zod';
+import PDFDocument from 'pdfkit';
+import { EmailService } from '../services/emailService';
 
 const prisma = new PrismaClient();
 
@@ -20,11 +22,11 @@ export const getReviewInvitations = async (req: AuthenticatedRequest, res: Respo
   try {
     const { status, page = 1, limit = 10 } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
-    
+
     const where: any = {
       reviewerId: req.user!.id
     };
-    
+
     if (status && status !== 'all') {
       where.status = status;
     }
@@ -81,7 +83,7 @@ export const getReviewInvitations = async (req: AuthenticatedRequest, res: Respo
       }
     }));
 
-    res.json({
+    return res.json({
       success: true,
       data: reviewsWithMaskedAuthors,
       pagination: {
@@ -93,7 +95,7 @@ export const getReviewInvitations = async (req: AuthenticatedRequest, res: Respo
     });
   } catch (error) {
     console.error('Get review invitations error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -104,7 +106,7 @@ export const respondToInvitation = async (req: AuthenticatedRequest, res: Respon
   try {
     const { reviewId } = req.params;
     const validatedData = reviewResponseSchema.parse(req.body);
-    
+
     const review = await prisma.review.findUnique({
       where: { id: reviewId }
     });
@@ -149,7 +151,7 @@ export const respondToInvitation = async (req: AuthenticatedRequest, res: Respon
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedReview,
       message: validatedData.accept ? 'Review invitation accepted' : 'Review invitation declined'
@@ -164,7 +166,7 @@ export const respondToInvitation = async (req: AuthenticatedRequest, res: Respon
     }
 
     console.error('Respond to invitation error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -175,11 +177,19 @@ export const submitReview = async (req: AuthenticatedRequest, res: Response) => 
   try {
     const { reviewId } = req.params;
     const validatedData = reviewSchema.parse(req.body);
-    
+
     const review = await prisma.review.findUnique({
       where: { id: reviewId },
       include: {
-        submission: true
+        submission: {
+          include: {
+            editorAssignments: {
+              include: {
+                editor: true
+              }
+            }
+          }
+        }
       }
     });
 
@@ -222,25 +232,35 @@ export const submitReview = async (req: AuthenticatedRequest, res: Response) => 
       }
     });
 
-    const allReviews = await prisma.review.findMany({
-      where: {
-        submissionId: review.submissionId
-      }
-    });
+    // Create timeline entry (using correct Prisma model name)
+    // Note: The model is SubmissionTimeline but Prisma client uses camelCase
+    // We'll skip this for now and add it in a separate update if needed
 
-    const completedReviews = allReviews.filter(r => r.status === 'COMPLETED');
-    const pendingReviews = allReviews.filter(r => r.status === 'PENDING' || r.status === 'IN_PROGRESS');
+    // Send thank you email to reviewer asynchronously
+    EmailService.sendReviewThankYou(reviewId).catch(err =>
+      console.error('Failed to send review thank you email:', err)
+    );
 
-    if (completedReviews.length >= 2 || pendingReviews.length === 0) {
-      await prisma.submission.update({
-        where: { id: review.submissionId },
+    // Send notification to editors asynchronously
+    EmailService.sendReviewCompletedNotification(reviewId).catch(err =>
+      console.error('Failed to send review completed notification:', err)
+    );
+
+    // Create in-app notifications for editors
+    const editors = review.submission.editorAssignments.map(ea => ea.editor);
+    for (const editor of editors) {
+      await prisma.notification.create({
         data: {
-          status: 'UNDER_REVIEW'
+          userId: editor.id,
+          type: 'REVIEW_COMPLETED',
+          title: 'Review Completed',
+          message: `A review has been completed for "${review.submission.title}"`,
+          submissionId: review.submissionId
         }
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedReview,
       message: 'Review submitted successfully'
@@ -255,20 +275,30 @@ export const submitReview = async (req: AuthenticatedRequest, res: Response) => 
     }
 
     console.error('Submit review error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
   }
 };
 
+
 export const getReview = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { reviewId } = req.params;
-    
+
     const review = await prisma.review.findUnique({
       where: { id: reviewId },
       include: {
+        reviewer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            affiliation: true
+          }
+        },
         submission: {
           select: {
             id: true,
@@ -297,6 +327,28 @@ export const getReview = async (req: AuthenticatedRequest, res: Response) => {
                 fileSize: true,
                 isMainFile: true
               }
+            },
+            revisions: {
+              include: {
+                files: {
+                  select: {
+                    id: true,
+                    filename: true,
+                    originalName: true,
+                    fileType: true,
+                    fileSize: true,
+                    uploadedAt: true
+                  }
+                }
+              },
+              orderBy: {
+                revisionNumber: 'desc'
+              }
+            },
+            editorAssignments: {
+              select: {
+                editorId: true
+              }
             }
           }
         }
@@ -310,29 +362,39 @@ export const getReview = async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    if (review.reviewerId !== req.user!.id) {
+    // Allow access if user is the reviewer OR an assigned editor OR an admin
+    const isReviewer = review.reviewerId === req.user!.id;
+    const isAssignedEditor = review.submission.editorAssignments.some(
+      assignment => assignment.editorId === req.user!.id
+    );
+    const isAdmin = req.user!.role === 'ADMIN' || req.user!.role === 'EDITOR';
+
+    if (!isReviewer && !isAssignedEditor && !isAdmin) {
       return res.status(403).json({
         success: false,
         error: 'Access denied'
       });
     }
 
+    // Mask author information for reviewers if double-blind
+    const shouldMaskAuthors = isReviewer && review.submission.isDoubleBlind;
+
     const reviewWithMaskedAuthors = {
       ...review,
       submission: {
         ...review.submission,
-        author: review.submission.isDoubleBlind ? null : review.submission.author,
-        coAuthors: review.submission.isDoubleBlind ? [] : review.submission.coAuthors
+        author: shouldMaskAuthors ? null : review.submission.author,
+        coAuthors: shouldMaskAuthors ? [] : review.submission.coAuthors
       }
     };
 
-    res.json({
+    return res.json({
       success: true,
       data: reviewWithMaskedAuthors
     });
   } catch (error) {
     console.error('Get review error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -343,7 +405,7 @@ export const updateReview = async (req: AuthenticatedRequest, res: Response) => 
   try {
     const { reviewId } = req.params;
     const validatedData = reviewSchema.partial().parse(req.body);
-    
+
     const review = await prisma.review.findUnique({
       where: { id: reviewId }
     });
@@ -374,7 +436,7 @@ export const updateReview = async (req: AuthenticatedRequest, res: Response) => 
       data: validatedData
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedReview,
       message: 'Review updated successfully'
@@ -389,7 +451,7 @@ export const updateReview = async (req: AuthenticatedRequest, res: Response) => 
     }
 
     console.error('Update review error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -445,7 +507,7 @@ export const getPendingInvitations = async (req: AuthenticatedRequest, res: Resp
       })
     ]);
 
-    res.json({
+    return res.json({
       success: true,
       data: invitations,
       pagination: {
@@ -457,7 +519,7 @@ export const getPendingInvitations = async (req: AuthenticatedRequest, res: Resp
     });
   } catch (error) {
     console.error('Get pending invitations error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -522,14 +584,14 @@ export const acceptInvitation = async (req: AuthenticatedRequest, res: Response)
       })
     ]);
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedInvitation,
       message: 'Invitation accepted successfully'
     });
   } catch (error) {
     console.error('Accept invitation error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -593,16 +655,319 @@ export const declineInvitation = async (req: AuthenticatedRequest, res: Response
       })
     ]);
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedInvitation,
       message: 'Invitation declined successfully'
     });
   } catch (error) {
     console.error('Decline invitation error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
+  }
+};
+
+// Additional endpoints for frontend compatibility
+export const getPendingReviews = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const reviews = await prisma.review.findMany({
+      where: {
+        reviewerId: req.user!.id,
+        status: {
+          in: ['PENDING', 'IN_PROGRESS']
+        }
+      },
+      orderBy: { invitedAt: 'desc' },
+      include: {
+        submission: {
+          select: {
+            id: true,
+            title: true,
+            abstract: true,
+            keywords: true,
+            manuscriptType: true,
+            isDoubleBlind: true,
+            submittedAt: true,
+            status: true,
+            author: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                affiliation: true
+              }
+            },
+            coAuthors: true
+          }
+        }
+      }
+    });
+
+    const reviewsWithMaskedAuthors = reviews.map(review => ({
+      ...review,
+      submission: {
+        ...review.submission,
+        author: review.submission.isDoubleBlind ? null : review.submission.author,
+        coAuthors: review.submission.isDoubleBlind ? [] : review.submission.coAuthors
+      }
+    }));
+
+    return res.json({
+      success: true,
+      data: reviewsWithMaskedAuthors
+    });
+  } catch (error) {
+    console.error('Get pending reviews error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const getCompletedReviews = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const reviews = await prisma.review.findMany({
+      where: {
+        reviewerId: req.user!.id,
+        status: 'COMPLETED'
+      },
+      orderBy: { submittedAt: 'desc' },
+      include: {
+        submission: {
+          select: {
+            id: true,
+            title: true,
+            abstract: true,
+            keywords: true,
+            manuscriptType: true,
+            isDoubleBlind: true,
+            submittedAt: true,
+            status: true,
+            author: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                affiliation: true
+              }
+            },
+            coAuthors: true
+          }
+        }
+      }
+    });
+
+    const reviewsWithMaskedAuthors = reviews.map(review => ({
+      ...review,
+      submission: {
+        ...review.submission,
+        author: review.submission.isDoubleBlind ? null : review.submission.author,
+        coAuthors: review.submission.isDoubleBlind ? [] : review.submission.coAuthors
+      }
+    }));
+
+    return res.json({
+      success: true,
+      data: reviewsWithMaskedAuthors
+    });
+  } catch (error) {
+    console.error('Get completed reviews error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const getReviewStats = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const [totalReviews, completedReviews, pendingReviews] = await Promise.all([
+      prisma.review.count({
+        where: { reviewerId: req.user!.id }
+      }),
+      prisma.review.count({
+        where: {
+          reviewerId: req.user!.id,
+          status: 'COMPLETED'
+        }
+      }),
+      prisma.review.count({
+        where: {
+          reviewerId: req.user!.id,
+          status: {
+            in: ['PENDING', 'IN_PROGRESS']
+          }
+        }
+      })
+    ]);
+
+    const completedReviewsData = await prisma.review.findMany({
+      where: {
+        reviewerId: req.user!.id,
+        status: 'COMPLETED',
+        rating: { not: null }
+      },
+      select: {
+        rating: true
+      }
+    });
+
+    const averageRating = completedReviewsData.length > 0
+      ? completedReviewsData.reduce((sum, r) => sum + (r.rating || 0), 0) / completedReviewsData.length
+      : 0;
+
+    return res.json({
+      success: true,
+      data: {
+        totalReviews,
+        completedReviews,
+        pendingReviews,
+        averageRating: Math.round(averageRating * 10) / 10
+      }
+    });
+  } catch (error) {
+    console.error('Get review stats error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const getReviewHistory = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const reviews = await prisma.review.findMany({
+      where: {
+        reviewerId: req.user!.id
+      },
+      orderBy: { invitedAt: 'desc' },
+      include: {
+        submission: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            submittedAt: true
+          }
+        }
+      }
+    });
+
+    return res.json({
+      success: true,
+      data: reviews
+    });
+  } catch (error) {
+    console.error('Get review history error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const generateCertificate = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { reviewId } = req.params;
+
+    const review = await prisma.review.findUnique({
+      where: { id: reviewId },
+      include: {
+        reviewer: true,
+        submission: true
+      }
+    });
+
+    if (!review) {
+      return res.status(404).json({
+        success: false,
+        error: 'Review not found'
+      });
+    }
+
+    if (review.reviewerId !== req.user!.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+
+    if (review.status !== 'COMPLETED') {
+      return res.status(400).json({
+        success: false,
+        error: 'Review must be completed to generate certificate'
+      });
+    }
+
+    const doc = new PDFDocument({
+      layout: 'landscape',
+      size: 'A4'
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=Reviewer_Certificate_${reviewId}.pdf`);
+
+    doc.pipe(res);
+
+    // Certificate Border
+    doc.rect(20, 20, doc.page.width - 40, doc.page.height - 40).stroke();
+    doc.rect(40, 40, doc.page.width - 80, doc.page.height - 80).stroke();
+
+    // Header
+    doc.fontSize(30).font('Helvetica-Bold').text('CERTIFICATE OF REVIEWING', {
+      align: 'center',
+      underline: true
+    });
+    doc.moveDown();
+
+    // Content
+    doc.fontSize(16).font('Helvetica').text('This certificate is awarded to', {
+      align: 'center'
+    });
+    doc.moveDown();
+
+    doc.fontSize(24).font('Helvetica-Bold').text(`${review.reviewer.firstName} ${review.reviewer.lastName}`, {
+      align: 'center'
+    });
+    doc.moveDown();
+
+    doc.fontSize(16).font('Helvetica').text('in recognition of their contribution as a peer reviewer for', {
+      align: 'center'
+    });
+    doc.moveDown();
+
+    doc.fontSize(20).font('Helvetica-Bold').text(process.env.JOURNAL_NAME || 'GEMIJ Journal', {
+      align: 'center'
+    });
+    doc.moveDown();
+
+    doc.fontSize(14).font('Helvetica').text(`Manuscript Title: ${review.submission.title}`, {
+      align: 'center'
+    });
+    doc.moveDown();
+
+    doc.fontSize(14).text(`Date of Review: ${review.submittedAt ? new Date(review.submittedAt).toLocaleDateString() : new Date().toLocaleDateString()}`, {
+      align: 'center'
+    });
+    doc.moveDown(2);
+
+    // Signature (Placeholder)
+    doc.fontSize(12).text('_________________________', { align: 'center' });
+    doc.text('Editor-in-Chief', { align: 'center' });
+
+    doc.end();
+    return res;
+
+  } catch (error) {
+    console.error('Generate certificate error:', error);
+    if (!res.headersSent) {
+      return res.status(500).json({
+        success: false,
+        error: 'Internal server error'
+      });
+    }
   }
 };

@@ -119,6 +119,19 @@ const emailTemplates = [
     variables: ['authorName', 'submissionTitle', 'apcAmount', 'currency', 'paymentUrl', 'journalName']
   },
   {
+    name: 'payment_received',
+    subject: 'Payment Received - {{submissionTitle}}',
+    htmlContent: `
+      <h2>Dear {{authorName}},</h2>
+      <p>We have received your payment of {{amount}} {{currency}} for the manuscript "{{submissionTitle}}".</p>
+      <p><strong>Invoice Number:</strong> {{invoiceNumber}}</p>
+      <p>Your article is now ready for the final stages of publication. Our editorial team will proceed with the necessary steps.</p>
+      <p>Best regards,<br>{{journalName}} Editorial Team</p>
+    `,
+    textContent: 'Dear {{authorName}}, We have received your payment of {{amount}} {{currency}} for "{{submissionTitle}}". Invoice: {{invoiceNumber}}. Your article is ready for publication.',
+    variables: ['authorName', 'submissionTitle', 'amount', 'currency', 'invoiceNumber', 'journalName']
+  },
+  {
     name: 'publication_notification',
     subject: 'Your Article is Now Published - {{submissionTitle}}',
     htmlContent: `
@@ -133,6 +146,37 @@ const emailTemplates = [
     `,
     textContent: 'Your article "{{submissionTitle}}" is now published. DOI: {{doi}}. View at: {{articleUrl}}',
     variables: ['submissionTitle', 'doi', 'volume', 'issue', 'pages', 'articleUrl', 'journalName']
+  },
+  {
+    name: 'review_thank_you',
+    subject: 'Thank You for Your Review - {{submissionTitle}}',
+    htmlContent: `
+      <h2>Dear {{reviewerName}},</h2>
+      <p>Thank you for completing your review of the manuscript "{{submissionTitle}}" for {{journalName}}.</p>
+      <p>We appreciate your time and expertise in helping us maintain the quality of our publication.</p>
+      <p>You can download your review certificate here: <a href="{{certificateUrl}}">Download Certificate</a></p>
+      <p>We hope you will consider reviewing for us again in the future.</p>
+      <p>Best regards,<br>{{journalName}} Editorial Team</p>
+    `,
+    textContent: 'Dear {{reviewerName}}, Thank you for completing your review of "{{submissionTitle}}" for {{journalName}}. Download your certificate at: {{certificateUrl}}. We appreciate your contribution.',
+    variables: ['reviewerName', 'submissionTitle', 'certificateUrl', 'journalName']
+  },
+  {
+    name: 'password_reset',
+    subject: 'Password Reset Request - {{journalName}}',
+    htmlContent: `
+      <h2>Dear {{userName}},</h2>
+      <p>You have requested to reset your password for your {{journalName}} account.</p>
+      <p>Please click the link below to reset your password:</p>
+      <p><a href="{{resetUrl}}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a></p>
+      <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+      <p>{{resetUrl}}</p>
+      <p>This link will expire in 1 hour for security reasons.</p>
+      <p>If you did not request this password reset, please ignore this email.</p>
+      <p>Best regards,<br>{{journalName}} Support Team</p>
+    `,
+    textContent: 'Dear {{userName}}, You have requested to reset your password for {{journalName}}. Please visit: {{resetUrl}} to reset your password. This link expires in 1 hour.',
+    variables: ['userName', 'resetUrl', 'journalName']
   }
 ];
 
@@ -141,7 +185,7 @@ const systemSettings = [
   { key: 'journal_abbreviation', value: 'IJATEM', type: 'string' },
   { key: 'journal_issn', value: '2345-6789', type: 'string' },
   { key: 'apc_amount', value: '299.00', type: 'decimal' },
-  { key: 'apc_currency', value: 'USD', type: 'string' },
+  { key: 'apc_currency', value: 'INR', type: 'string' },
   { key: 'review_deadline_days', value: '21', type: 'number' },
   { key: 'reminder_days_before_due', value: '3', type: 'number' },
   { key: 'max_reviewers_per_submission', value: '3', type: 'number' },
@@ -240,7 +284,7 @@ async function main() {
   });
 
   console.log('Creating sample issues and articles...');
-  
+
   // Create Issue 1 (Current Issue)
   const issue1 = await prisma.issue.upsert({
     where: { volume_number: { volume: 1, number: 1 } },

@@ -5,9 +5,11 @@ import { submissionService } from '@/services/submissionService';
 import { reviewerService } from '@/services/reviewerService';
 import { editorService, EditorStats } from '@/services/editorService';
 import adminService, { AdminStats } from '@/services/adminService';
+import publicationService from '@/services/publicationService';
 import { Submission, SubmissionStatus, Review, ReviewStatus } from '@/types';
 import Alert from '@/components/ui/Alert';
 import Badge from '@/components/ui/Badge';
+import Modal from '@/components/ui/Modal';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -18,8 +20,14 @@ const Dashboard: React.FC = () => {
   const [editorStats, setEditorStats] = useState<EditorStats | null>(null);
   const [editorSubmissions, setEditorSubmissions] = useState<Submission[]>([]);
   const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
+  const [readyToPublishCount, setReadyToPublishCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // Decline Modal State
+  const [declineModalOpen, setDeclineModalOpen] = useState(false);
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
+  const [declineReason, setDeclineReason] = useState('');
 
   useEffect(() => {
     if (location.state?.message) {
@@ -88,16 +96,60 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const [currency, setCurrency] = useState('INR');
+
   const loadAdminData = async () => {
     setLoading(true);
     try {
-      const stats = await adminService.getAdminStats();
+      const [stats, publicationData, settings] = await Promise.all([
+        adminService.getAdminStats(),
+        publicationService.getReadyToPublish(),
+        adminService.getSystemSettings()
+      ]);
       setAdminStats(stats);
+      setReadyToPublishCount(publicationData.data?.length || 0);
+      if (settings?.currency) {
+        setCurrency(settings.currency);
+      }
     } catch (error) {
       console.error('Failed to load admin data:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAcceptHandling = async (submissionId: string) => {
+    try {
+      await editorService.acceptHandling(submissionId);
+      setMessage({ text: 'You have accepted handling of this submission.', type: 'success' });
+      loadEditorData(); // Refresh data
+    } catch (error) {
+      console.error('Failed to accept handling:', error);
+      setMessage({ text: 'Failed to accept handling.', type: 'error' });
+    }
+  };
+
+  const handleDeclineHandling = async () => {
+    if (!selectedSubmissionId || !declineReason.trim()) return;
+
+    try {
+      await editorService.declineHandling(selectedSubmissionId, declineReason);
+      setMessage({ text: 'You have declined handling of this submission.', type: 'success' });
+      setDeclineModalOpen(false);
+      setDeclineReason('');
+      setSelectedSubmissionId(null);
+      loadEditorData(); // Refresh data
+    } catch (error) {
+      console.error('Failed to decline handling:', error);
+      setMessage({ text: 'Failed to decline handling.', type: 'error' });
+    }
+  };
+
+  const formatCurrency = (amount: number, currencyCode: string) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: currencyCode
+    }).format(amount);
   };
 
   const getWelcomeMessage = () => {
@@ -123,7 +175,7 @@ const Dashboard: React.FC = () => {
       case SubmissionStatus.REJECTED:
         return 'error';
       default:
-        return 'secondary';
+        return 'neutral';
     }
   };
 
@@ -140,11 +192,11 @@ const Dashboard: React.FC = () => {
       case ReviewStatus.COMPLETED:
         return 'success';
       case ReviewStatus.DECLINED:
-        return 'secondary';
+        return 'neutral';
       case ReviewStatus.OVERDUE:
         return 'error';
       default:
-        return 'secondary';
+        return 'neutral';
     }
   };
 
@@ -170,7 +222,7 @@ const Dashboard: React.FC = () => {
                   <p className="text-secondary-600 mb-4">
                     Start a new submission to the journal
                   </p>
-                  <button 
+                  <button
                     onClick={() => navigate('/submit-paper')}
                     className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 transition-colors"
                   >
@@ -178,7 +230,7 @@ const Dashboard: React.FC = () => {
                   </button>
                 </div>
               </div>
-              
+
               <div className="card">
                 <div className="card-body">
                   <h3 className="text-lg font-semibold text-secondary-900 mb-2">
@@ -190,7 +242,7 @@ const Dashboard: React.FC = () => {
                   <div className="text-2xl font-bold text-primary-600 mb-2">{submissions.length}</div>
                 </div>
               </div>
-              
+
               <div className="card">
                 <div className="card-body">
                   <h3 className="text-lg font-semibold text-secondary-900 mb-2">
@@ -199,7 +251,7 @@ const Dashboard: React.FC = () => {
                   <p className="text-secondary-600 mb-4">
                     Review submission requirements
                   </p>
-                  <button 
+                  <button
                     onClick={() => navigate('/author-guidelines')}
                     className="w-full bg-secondary-600 text-white py-2 px-4 rounded-md hover:bg-secondary-700 transition-colors"
                   >
@@ -225,7 +277,7 @@ const Dashboard: React.FC = () => {
                 ) : submissions.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-secondary-600">No submissions yet.</p>
-                    <button 
+                    <button
                       onClick={() => navigate('/submit-paper')}
                       className="mt-4 bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 transition-colors"
                     >
@@ -251,14 +303,14 @@ const Dashboard: React.FC = () => {
                           Type: {submission.manuscriptType}
                         </p>
                         <div className="flex space-x-2">
-                          <button 
+                          <button
                             onClick={() => navigate(`/submission/${submission.id}`)}
                             className="text-sm bg-secondary-100 text-secondary-700 px-3 py-1 rounded hover:bg-secondary-200 transition-colors"
                           >
                             View Details
                           </button>
                           {submission.status === SubmissionStatus.REVISION_REQUIRED && (
-                            <button 
+                            <button
                               onClick={() => navigate(`/submission/${submission.id}/revise`)}
                               className="text-sm bg-warning-100 text-warning-700 px-3 py-1 rounded hover:bg-warning-200 transition-colors"
                             >
@@ -266,7 +318,7 @@ const Dashboard: React.FC = () => {
                             </button>
                           )}
                           {submission.status === SubmissionStatus.ACCEPTED && (
-                            <button 
+                            <button
                               onClick={() => navigate(`/submission/${submission.id}/payment`)}
                               className="text-sm bg-success-100 text-success-700 px-3 py-1 rounded hover:bg-success-200 transition-colors"
                             >
@@ -282,12 +334,12 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         );
-      
+
       case 'REVIEWER':
         const pendingReviews = reviews.filter(r => r.status === ReviewStatus.PENDING || r.status === ReviewStatus.IN_PROGRESS);
         const completedReviews = reviews.filter(r => r.status === ReviewStatus.COMPLETED);
         const overdueReviews = reviews.filter(r => r.status === ReviewStatus.IN_PROGRESS && isReviewOverdue(r.dueDate));
-        
+
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -307,7 +359,7 @@ const Dashboard: React.FC = () => {
                   )}
                 </div>
               </div>
-              
+
               <div className="card">
                 <div className="card-body">
                   <h3 className="text-lg font-semibold text-secondary-900 mb-2">
@@ -355,7 +407,7 @@ const Dashboard: React.FC = () => {
                     {reviews.map((review) => {
                       const overdue = review.status === ReviewStatus.IN_PROGRESS && isReviewOverdue(review.dueDate);
                       const daysLeft = Math.ceil((new Date(review.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                      
+
                       return (
                         <div key={review.id} className="border border-secondary-200 rounded-lg p-4">
                           <div className="flex justify-between items-start mb-2">
@@ -382,7 +434,7 @@ const Dashboard: React.FC = () => {
                           </p>
                           <div className="flex space-x-2">
                             {review.status === ReviewStatus.PENDING && (
-                              <button 
+                              <button
                                 onClick={() => navigate(`/review-invitation/${review.id}`)}
                                 className="text-sm bg-primary-100 text-primary-700 px-3 py-1 rounded hover:bg-primary-200 transition-colors"
                               >
@@ -390,7 +442,7 @@ const Dashboard: React.FC = () => {
                               </button>
                             )}
                             {review.status === ReviewStatus.IN_PROGRESS && (
-                              <button 
+                              <button
                                 onClick={() => navigate(`/review/${review.id}`)}
                                 className="text-sm bg-info-100 text-info-700 px-3 py-1 rounded hover:bg-info-200 transition-colors"
                               >
@@ -398,7 +450,7 @@ const Dashboard: React.FC = () => {
                               </button>
                             )}
                             {review.status === ReviewStatus.COMPLETED && (
-                              <button 
+                              <button
                                 onClick={() => navigate(`/review/${review.id}`)}
                                 className="text-sm bg-success-100 text-success-700 px-3 py-1 rounded hover:bg-success-200 transition-colors"
                               >
@@ -406,8 +458,8 @@ const Dashboard: React.FC = () => {
                               </button>
                             )}
                             {review.status === ReviewStatus.COMPLETED && (
-                              <button 
-                                onClick={() => navigate(`/review/${review.id}/certificate`)}
+                              <button
+                                onClick={() => window.open(`/certificate/${review.id}`, '_blank')}
                                 className="text-sm bg-secondary-100 text-secondary-700 px-3 py-1 rounded hover:bg-secondary-200 transition-colors"
                               >
                                 Get Certificate
@@ -423,7 +475,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         );
-      
+
       case 'EDITOR':
         return (
           <div className="space-y-6">
@@ -438,7 +490,7 @@ const Dashboard: React.FC = () => {
                     {editorStats?.pendingReview || 0}
                   </div>
                   <p className="text-secondary-600">Awaiting initial review</p>
-                  <button 
+                  <button
                     onClick={() => navigate('/editor/submissions?status=SUBMITTED')}
                     className="mt-2 text-sm text-blue-600 hover:text-blue-800"
                   >
@@ -446,7 +498,7 @@ const Dashboard: React.FC = () => {
                   </button>
                 </div>
               </div>
-              
+
               <div className="card">
                 <div className="card-body">
                   <h3 className="text-lg font-semibold text-secondary-900 mb-2">
@@ -456,7 +508,7 @@ const Dashboard: React.FC = () => {
                     {editorStats?.underReview || 0}
                   </div>
                   <p className="text-secondary-600">In peer review</p>
-                  <button 
+                  <button
                     onClick={() => navigate('/editor/submissions?status=UNDER_REVIEW')}
                     className="mt-2 text-sm text-yellow-600 hover:text-yellow-800"
                   >
@@ -464,7 +516,7 @@ const Dashboard: React.FC = () => {
                   </button>
                 </div>
               </div>
-              
+
               <div className="card">
                 <div className="card-body">
                   <h3 className="text-lg font-semibold text-secondary-900 mb-2">
@@ -474,7 +526,7 @@ const Dashboard: React.FC = () => {
                     {editorStats?.awaitingDecision || 0}
                   </div>
                   <p className="text-secondary-600">Reviews completed</p>
-                  <button 
+                  <button
                     onClick={() => navigate('/editor/decisions')}
                     className="mt-2 text-sm text-orange-600 hover:text-orange-800"
                   >
@@ -482,7 +534,7 @@ const Dashboard: React.FC = () => {
                   </button>
                 </div>
               </div>
-              
+
               <div className="card">
                 <div className="card-body">
                   <h3 className="text-lg font-semibold text-secondary-900 mb-2">
@@ -492,7 +544,7 @@ const Dashboard: React.FC = () => {
                     {editorStats?.accepted || 0}
                   </div>
                   <p className="text-secondary-600">Ready for production</p>
-                  <button 
+                  <button
                     onClick={() => navigate('/editor/production')}
                     className="mt-2 text-sm text-green-600 hover:text-green-800"
                   >
@@ -510,19 +562,19 @@ const Dashboard: React.FC = () => {
                     Quick Actions
                   </h3>
                   <div className="space-y-2">
-                    <button 
+                    <button
                       onClick={() => navigate('/editor/submissions/new')}
                       className="w-full text-left bg-blue-50 text-blue-700 px-3 py-2 rounded hover:bg-blue-100 transition-colors"
                     >
                       Screen New Submissions
                     </button>
-                    <button 
+                    <button
                       onClick={() => navigate('/editor/reviewers')}
                       className="w-full text-left bg-purple-50 text-purple-700 px-3 py-2 rounded hover:bg-purple-100 transition-colors"
                     >
                       Manage Reviewers
                     </button>
-                    <button 
+                    <button
                       onClick={() => navigate('/editor/issues')}
                       className="w-full text-left bg-green-50 text-green-700 px-3 py-2 rounded hover:bg-green-100 transition-colors"
                     >
@@ -542,7 +594,7 @@ const Dashboard: React.FC = () => {
                     0
                   </div>
                   <p className="text-secondary-600 mb-2">Reviews past deadline</p>
-                  <button 
+                  <button
                     onClick={() => navigate('/editor/reviews/overdue')}
                     className="text-sm text-red-600 hover:text-red-800"
                   >
@@ -581,7 +633,7 @@ const Dashboard: React.FC = () => {
                   <h2 className="text-xl font-semibold text-secondary-900">
                     Recent Submissions
                   </h2>
-                  <button 
+                  <button
                     onClick={() => navigate('/editor/submissions')}
                     className="text-sm text-primary-600 hover:text-primary-800"
                   >
@@ -623,35 +675,67 @@ const Dashboard: React.FC = () => {
                           </div>
                         </div>
                         <div className="flex space-x-2">
-                          <button 
-                            onClick={() => navigate(`/editor/submission/${submission.id}`)}
-                            className="text-sm bg-primary-100 text-primary-700 px-3 py-1 rounded hover:bg-primary-200 transition-colors"
-                          >
-                            Review Submission
-                          </button>
-                          {submission.status === SubmissionStatus.SUBMITTED && (
-                            <button 
-                              onClick={() => navigate(`/editor/submission/${submission.id}/screen`)}
-                              className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 transition-colors"
-                            >
-                              Initial Screening
-                            </button>
-                          )}
-                          {submission.status === SubmissionStatus.INITIAL_REVIEW && (
-                            <button 
-                              onClick={() => navigate(`/editor/submission/${submission.id}/assign-reviewers`)}
-                              className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200 transition-colors"
-                            >
-                              Assign Reviewers
-                            </button>
-                          )}
-                          {submission.status === SubmissionStatus.UNDER_REVIEW && (
-                            <button 
-                              onClick={() => navigate(`/editor/submission/${submission.id}/reviews`)}
-                              className="text-sm bg-yellow-100 text-yellow-700 px-3 py-1 rounded hover:bg-yellow-200 transition-colors"
-                            >
-                              Track Reviews
-                            </button>
+                          {submission.status === SubmissionStatus.SUBMITTED ? (
+                            <>
+                              <button
+                                onClick={() => handleAcceptHandling(submission.id)}
+                                className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 transition-colors"
+                              >
+                                Accept Handling
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedSubmissionId(submission.id);
+                                  setDeclineModalOpen(true);
+                                }}
+                                className="text-sm bg-red-100 text-red-700 px-3 py-1 rounded hover:bg-red-200 transition-colors"
+                              >
+                                Decline Handling
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => {
+                                  if (submission.status === SubmissionStatus.INITIAL_REVIEW) {
+                                    navigate(`/editor/submission/${submission.id}/screen`);
+                                  } else {
+                                    navigate(`/editor/submission/${submission.id}/reviews`);
+                                  }
+                                }}
+                                className="text-sm bg-primary-100 text-primary-700 px-3 py-1 rounded hover:bg-primary-200 transition-colors"
+                              >
+                                Review Submission
+                              </button>
+                              {submission.status === SubmissionStatus.INITIAL_REVIEW && (
+                                <button
+                                  onClick={() => navigate(`/editor/submission/${submission.id}/assign-reviewers`)}
+                                  className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200 transition-colors"
+                                >
+                                  Assign Reviewers
+                                </button>
+                              )}
+                              {submission.status === SubmissionStatus.UNDER_REVIEW && (
+                                <>
+                                  <button
+                                    onClick={() => navigate(`/editor/submission/${submission.id}/reviews`)}
+                                    className="text-sm bg-yellow-100 text-yellow-700 px-3 py-1 rounded hover:bg-yellow-200 transition-colors"
+                                  >
+                                    Track Reviews
+                                  </button>
+                                  {/* Check if all reviews are completed */}
+                                  {submission.reviews && submission.reviews.length > 0 &&
+                                    submission.reviews.every(r => r.status === 'COMPLETED') && (
+                                      <button
+                                        onClick={() => navigate(`/editor/submission/${submission.id}/decision`)}
+                                        className="text-sm bg-green-100 text-green-700 px-3 py-1 rounded hover:bg-green-200 transition-colors font-medium"
+                                      >
+                                        Make Decision
+                                      </button>
+                                    )}
+                                </>
+                              )}
+                            </>
                           )}
                         </div>
                       </div>
@@ -681,7 +765,7 @@ const Dashboard: React.FC = () => {
                     <div>Editors: {adminStats?.totalEditors || 0}</div>
                     <div>Reviewers: {adminStats?.totalReviewers || 0}</div>
                   </div>
-                  <button 
+                  <button
                     onClick={() => navigate('/admin/users')}
                     className="mt-2 text-sm text-blue-600 hover:text-blue-800"
                   >
@@ -689,7 +773,7 @@ const Dashboard: React.FC = () => {
                   </button>
                 </div>
               </div>
-              
+
               <div className="card">
                 <div className="card-body">
                   <h3 className="text-lg font-semibold text-secondary-900 mb-2">
@@ -702,56 +786,88 @@ const Dashboard: React.FC = () => {
                     <div>Pending: {adminStats?.pendingSubmissions || 0}</div>
                     <div>Published: {adminStats?.publishedArticles || 0}</div>
                   </div>
-                  <button 
-                    onClick={() => navigate('/admin/monitoring')}
+                  <button
+                    onClick={() => navigate('/admin/submissions')}
                     className="mt-2 text-sm text-green-600 hover:text-green-800"
                   >
                     View analytics →
                   </button>
                 </div>
               </div>
-              
+
               <div className="card">
                 <div className="card-body">
                   <h3 className="text-lg font-semibold text-secondary-900 mb-2">
                     Revenue
                   </h3>
                   <div className="text-2xl font-bold text-purple-600 mb-2">
-                    ${adminStats?.totalRevenue?.toLocaleString() || 0}
+                    {formatCurrency(adminStats?.totalRevenue || 0, currency)}
                   </div>
                   <div className="text-sm text-secondary-600">
                     Pending: {adminStats?.pendingPayments || 0} payments
                   </div>
-                  <button 
+                  <button
                     onClick={() => navigate('/admin/payments')}
-                    className="mt-2 text-sm text-purple-600 hover:text-purple-800"
+                    className="mt-2 text-sm text-purple-600 hover:text-purple-800 mr-4"
                   >
                     Manage payments →
                   </button>
+                  <button
+                    onClick={() => navigate('/admin/payments/settings')}
+                    className="mt-2 text-sm text-purple-600 hover:text-purple-800"
+                  >
+                    Settings →
+                  </button>
                 </div>
               </div>
-              
+
               <div className="card">
                 <div className="card-body">
                   <h3 className="text-lg font-semibold text-secondary-900 mb-2">
                     System Health
                   </h3>
-                  <div className={`text-2xl font-bold mb-2 ${
-                    adminStats?.systemHealth === 'healthy' ? 'text-green-600' :
+                  <div className={`text-2xl font-bold mb-2 ${adminStats?.systemHealth === 'healthy' ? 'text-green-600' :
                     adminStats?.systemHealth === 'warning' ? 'text-yellow-600' : 'text-red-600'
-                  }`}>
+                    }`}>
                     {adminStats?.systemHealth === 'healthy' ? '✓' :
-                     adminStats?.systemHealth === 'warning' ? '⚠' : '✗'}
+                      adminStats?.systemHealth === 'warning' ? '⚠' : '✗'}
                   </div>
                   <div className="text-sm text-secondary-600 capitalize">
                     {adminStats?.systemHealth || 'Unknown'}
                   </div>
-                  <button 
+                  <button
                     onClick={() => navigate('/admin/monitoring')}
                     className="mt-2 text-sm text-gray-600 hover:text-gray-800"
                   >
                     View details →
                   </button>
+                </div>
+              </div>
+
+              <div className="card bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-200">
+                <div className="card-body">
+                  <h3 className="text-lg font-semibold text-indigo-900 mb-2">
+                    Ready to Publish
+                  </h3>
+                  <div className="text-2xl font-bold text-indigo-600 mb-2">
+                    {readyToPublishCount}
+                  </div>
+                  <div className="text-sm text-indigo-700 mb-3">
+                    Accepted & paid articles
+                  </div>
+                  {readyToPublishCount > 0 && (
+                    <button
+                      onClick={() => navigate('/admin/publications')}
+                      className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors font-medium"
+                    >
+                      Publish Now →
+                    </button>
+                  )}
+                  {readyToPublishCount === 0 && (
+                    <div className="text-sm text-indigo-600">
+                      No articles ready
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -764,25 +880,25 @@ const Dashboard: React.FC = () => {
                     User Management
                   </h3>
                   <div className="space-y-2">
-                    <button 
+                    <button
                       onClick={() => navigate('/admin/users')}
                       className="w-full text-left bg-blue-50 text-blue-700 px-3 py-2 rounded hover:bg-blue-100 transition-colors"
                     >
                       Manage All Users
                     </button>
-                    <button 
+                    <button
                       onClick={() => navigate('/admin/users?role=AUTHOR')}
                       className="w-full text-left bg-green-50 text-green-700 px-3 py-2 rounded hover:bg-green-100 transition-colors"
                     >
                       Manage Authors
                     </button>
-                    <button 
+                    <button
                       onClick={() => navigate('/admin/users?role=EDITOR')}
                       className="w-full text-left bg-purple-50 text-purple-700 px-3 py-2 rounded hover:bg-purple-100 transition-colors"
                     >
                       Manage Editors
                     </button>
-                    <button 
+                    <button
                       onClick={() => navigate('/admin/users?role=REVIEWER')}
                       className="w-full text-left bg-orange-50 text-orange-700 px-3 py-2 rounded hover:bg-orange-100 transition-colors"
                     >
@@ -798,25 +914,31 @@ const Dashboard: React.FC = () => {
                     System Management
                   </h3>
                   <div className="space-y-2">
-                    <button 
+                    <button
                       onClick={() => navigate('/admin/settings')}
                       className="w-full text-left bg-gray-50 text-gray-700 px-3 py-2 rounded hover:bg-gray-100 transition-colors"
                     >
                       System Settings
                     </button>
-                    <button 
+                    <button
                       onClick={() => navigate('/admin/issues')}
                       className="w-full text-left bg-indigo-50 text-indigo-700 px-3 py-2 rounded hover:bg-indigo-100 transition-colors"
                     >
                       Manage Issues
                     </button>
-                    <button 
+                    <button
+                      onClick={() => navigate('/admin/landing-page')}
+                      className="w-full text-left bg-cyan-50 text-cyan-700 px-3 py-2 rounded hover:bg-cyan-100 transition-colors"
+                    >
+                      Landing Page Editor
+                    </button>
+                    <button
                       onClick={() => navigate('/admin/monitoring')}
                       className="w-full text-left bg-teal-50 text-teal-700 px-3 py-2 rounded hover:bg-teal-100 transition-colors"
                     >
                       System Monitoring
                     </button>
-                    <button 
+                    <button
                       onClick={() => navigate('/admin/reports')}
                       className="w-full text-left bg-pink-50 text-pink-700 px-3 py-2 rounded hover:bg-pink-100 transition-colors"
                     >
@@ -832,19 +954,19 @@ const Dashboard: React.FC = () => {
                     Financial & Support
                   </h3>
                   <div className="space-y-2">
-                    <button 
+                    <button
                       onClick={() => navigate('/admin/payments')}
                       className="w-full text-left bg-emerald-50 text-emerald-700 px-3 py-2 rounded hover:bg-emerald-100 transition-colors"
                     >
                       Payment Management
                     </button>
-                    <button 
+                    <button
                       onClick={() => navigate('/admin/complaints')}
                       className="w-full text-left bg-red-50 text-red-700 px-3 py-2 rounded hover:bg-red-100 transition-colors"
                     >
                       Handle Complaints
                     </button>
-                    <button 
+                    <button
                       onClick={() => navigate('/admin/monitoring')}
                       className="w-full text-left bg-yellow-50 text-yellow-700 px-3 py-2 rounded hover:bg-yellow-100 transition-colors"
                     >
@@ -864,24 +986,30 @@ const Dashboard: React.FC = () => {
                   </h3>
                 </div>
                 <div className="card-body">
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between items-center">
-                      <span className="text-secondary-600">New submissions today:</span>
-                      <span className="font-medium">12</span>
+                  {loading ? (
+                    <div className="text-center py-4">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600 mx-auto"></div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-secondary-600">Reviews completed:</span>
-                      <span className="font-medium">8</span>
+                  ) : (
+                    <div className="space-y-3 text-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="text-secondary-600">Total submissions:</span>
+                        <span className="font-medium">{adminStats?.totalSubmissions || 0}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-secondary-600">Pending submissions:</span>
+                        <span className="font-medium">{adminStats?.pendingSubmissions || 0}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-secondary-600">Total users:</span>
+                        <span className="font-medium">{adminStats?.totalUsers || 0}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-secondary-600">Total revenue:</span>
+                        <span className="font-medium">${adminStats?.totalRevenue?.toLocaleString() || 0}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-secondary-600">New user registrations:</span>
-                      <span className="font-medium">5</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-secondary-600">Payments processed:</span>
-                      <span className="font-medium">$2,450</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -920,7 +1048,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         );
-      
+
       default:
         return (
           <div className="card">
@@ -940,11 +1068,10 @@ const Dashboard: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {message && (
-        <Alert 
-          variant={message.type === 'success' ? 'success' : 'error'} 
+        <Alert
+          variant={message.type === 'success' ? 'success' : 'error'}
           title={message.type === 'success' ? 'Success' : 'Error'}
           className="mb-6"
-          onClose={() => setMessage(null)}
         >
           {message.text}
         </Alert>
@@ -969,32 +1096,137 @@ const Dashboard: React.FC = () => {
             </h2>
           </div>
           <div className="card-body">
-            <div className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span className="text-secondary-700">
-                  New issue published: Volume 12, Issue 3
-                </span>
-                <span className="text-secondary-500 text-sm">2 days ago</span>
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                <p className="text-secondary-600 mt-2">Loading activity...</p>
               </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-secondary-700">
-                  System maintenance completed successfully
-                </span>
-                <span className="text-secondary-500 text-sm">1 week ago</span>
+            ) : (
+              <div className="space-y-4">
+                {user?.role === 'AUTHOR' && submissions.length > 0 ? (
+                  submissions.slice(0, 3).map((submission, index) => (
+                    <div key={submission.id} className="flex items-center space-x-3">
+                      <div className={`w-2 h-2 rounded-full ${submission.status === SubmissionStatus.ACCEPTED ? 'bg-green-500' :
+                        submission.status === SubmissionStatus.REJECTED ? 'bg-red-500' :
+                          submission.status === SubmissionStatus.UNDER_REVIEW ? 'bg-yellow-500' :
+                            'bg-blue-500'
+                        }`}></div>
+                      <span className="text-secondary-700 flex-1">
+                        Submission "{submission.title.substring(0, 50)}{submission.title.length > 50 ? '...' : ''}" - {formatStatus(submission.status)}
+                      </span>
+                      <span className="text-secondary-500 text-sm">
+                        {new Date(submission.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  ))
+                ) : user?.role === 'REVIEWER' && reviews.length > 0 ? (
+                  reviews.slice(0, 3).map((review, index) => (
+                    <div key={review.id} className="flex items-center space-x-3">
+                      <div className={`w-2 h-2 rounded-full ${review.status === ReviewStatus.COMPLETED ? 'bg-green-500' :
+                        review.status === ReviewStatus.IN_PROGRESS ? 'bg-yellow-500' :
+                          'bg-blue-500'
+                        }`}></div>
+                      <span className="text-secondary-700 flex-1">
+                        Review for "{review.submission.title.substring(0, 40)}{review.submission.title.length > 40 ? '...' : ''}" - {formatReviewStatus(review.status)}
+                      </span>
+                      <span className="text-secondary-500 text-sm">
+                        {new Date(review.invitedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  ))
+                ) : user?.role === 'EDITOR' && editorSubmissions.length > 0 ? (
+                  editorSubmissions.slice(0, 3).map((submission, index) => (
+                    <div key={submission.id} className="flex items-center space-x-3">
+                      <div className={`w-2 h-2 rounded-full ${submission.status === SubmissionStatus.ACCEPTED ? 'bg-green-500' :
+                        submission.status === SubmissionStatus.REJECTED ? 'bg-red-500' :
+                          submission.status === SubmissionStatus.UNDER_REVIEW ? 'bg-yellow-500' :
+                            'bg-blue-500'
+                        }`}></div>
+                      <span className="text-secondary-700 flex-1">
+                        "{submission.title.substring(0, 50)}{submission.title.length > 50 ? '...' : ''}" by {submission.author.firstName} {submission.author.lastName}
+                      </span>
+                      <span className="text-secondary-500 text-sm">
+                        {new Date(submission.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  ))
+                ) : user?.role === 'ADMIN' && adminStats ? (
+                  <>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span className="text-secondary-700 flex-1">
+                        Total submissions: {adminStats.totalSubmissions}
+                      </span>
+                      <span className="text-secondary-500 text-sm">All time</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-secondary-700 flex-1">
+                        Published articles: {adminStats.publishedArticles}
+                      </span>
+                      <span className="text-secondary-500 text-sm">All time</span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                      <span className="text-secondary-700 flex-1">
+                        Pending submissions: {adminStats.pendingSubmissions}
+                      </span>
+                      <span className="text-secondary-500 text-sm">Current</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-secondary-600">
+                    No recent activity to display
+                  </div>
+                )}
               </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <span className="text-secondary-700">
-                  New reviewer guidelines published
-                </span>
-                <span className="text-secondary-500 text-sm">2 weeks ago</span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
+      {/* Decline Modal */}
+      <Modal
+        isOpen={declineModalOpen}
+        onClose={() => {
+          setDeclineModalOpen(false);
+          setDeclineReason('');
+          setSelectedSubmissionId(null);
+        }}
+        title="Decline Submission Handling"
+        footer={
+          <>
+            <button
+              onClick={() => {
+                setDeclineModalOpen(false);
+                setDeclineReason('');
+                setSelectedSubmissionId(null);
+              }}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDeclineHandling}
+              disabled={!declineReason.trim()}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50"
+            >
+              Decline
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            Are you sure you want to decline handling this submission? Please provide a reason.
+          </p>
+          <textarea
+            value={declineReason}
+            onChange={(e) => setDeclineReason(e.target.value)}
+            className="w-full h-32 p-2 border border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500"
+            placeholder="Reason for declining..."
+          />
+        </div>
+      </Modal>
     </div>
   );
 };

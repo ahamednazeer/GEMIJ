@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import adminService, { ComplaintData } from '@/services/adminService';
 import Alert from '@/components/ui/Alert';
 import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
 
 const ComplaintHandling: React.FC = () => {
   const navigate = useNavigate();
@@ -166,36 +167,58 @@ const ComplaintHandling: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-secondary-900">Complaint Handling</h1>
-          <p className="text-secondary-600 mt-1">Manage complaints and retractions</p>
-        </div>
-        <div className="flex space-x-3">
-          <button
-            onClick={handleInitiateRetraction}
-            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+    <div className="min-h-screen bg-secondary-50">
+      {/* Clean Academic Header */}
+      <div className="bg-white border-b border-border">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/dashboard')}
+            className="mb-6 -ml-2"
+            size="sm"
           >
-            Initiate Retraction
-          </button>
-          <button
-            onClick={() => navigate('/admin')}
-            className="px-4 py-2 text-secondary-600 hover:text-secondary-800"
-          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
             Back to Dashboard
-          </button>
+          </Button>
+          
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+            <div className="flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3 leading-tight">
+                Complaint Handling
+              </h1>
+              <p className="text-base text-muted-foreground leading-relaxed">
+                Manage complaints and retractions
+              </p>
+            </div>
+            <div className="flex-shrink-0 flex space-x-3">
+              <Button
+                onClick={handleInitiateRetraction}
+                variant="error"
+              >
+                Initiate Retraction
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/dashboard')}
+              >
+                Back to Dashboard
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {message && (
-        <Alert
-          type={message.type}
-          message={message.text}
-          onClose={() => setMessage(null)}
-          className="mb-6"
-        />
-      )}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {message && (
+          <Alert
+            type={message.type}
+            message={message.text}
+            onClose={() => setMessage(null)}
+            className="mb-6"
+          />
+        )}
 
       {/* Tab Navigation */}
       <div className="flex space-x-1 mb-6">
@@ -576,6 +599,7 @@ const ComplaintHandling: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

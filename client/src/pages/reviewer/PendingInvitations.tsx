@@ -129,23 +129,36 @@ const PendingInvitations: React.FC = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <Button 
-          variant="ghost" 
-          onClick={() => navigate('/dashboard')}
-          className="mb-4"
-        >
-          ← Back to Dashboard
-        </Button>
-        
-        <h1 className="text-4xl font-bold text-secondary-900 mb-2">
-          Review Invitations
-        </h1>
-        <p className="text-secondary-600">
-          Manage your pending review invitations
-        </p>
+    <div className="min-h-screen bg-secondary-50">
+      {/* Clean Academic Header */}
+      <div className="bg-white border-b border-border">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/dashboard')}
+            className="mb-6 -ml-2"
+            size="sm"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Dashboard
+          </Button>
+          
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+            <div className="flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3 leading-tight">
+                Review Invitations
+              </h1>
+              <p className="text-base text-muted-foreground leading-relaxed">
+                Manage your pending review invitations
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
       {error && (
         <Alert variant="error" title="Error" className="mb-6">
@@ -321,6 +334,7 @@ const PendingInvitations: React.FC = () => {
           )}
         </>
       )}
+      </div>
     </div>
   );
 };

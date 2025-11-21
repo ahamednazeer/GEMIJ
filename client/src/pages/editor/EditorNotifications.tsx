@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { editorService } from '@/services/editorService';
 import { Submission } from '@/types';
 import Alert from '@/components/ui/Alert';
+import Button from '@/components/ui/Button';
 
 const EditorNotifications: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -164,7 +165,7 @@ Editorial Team`
 
   const getTemplatePreview = () => {
     if (!selectedTemplate || !submission) return '';
-    
+
     const template = decisionTemplates[selectedTemplate as keyof typeof decisionTemplates];
     if (!template) return '';
 
@@ -175,10 +176,12 @@ Editorial Team`
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="text-secondary-600 mt-2">Loading submission...</p>
+      <div className="min-h-screen bg-secondary-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+            <p className="text-secondary-600 mt-2">Loading submission...</p>
+          </div>
         </div>
       </div>
     );
@@ -186,179 +189,203 @@ Editorial Team`
 
   if (!submission) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Alert variant="error" title="Error">
-          Submission not found
-        </Alert>
+      <div className="min-h-screen bg-secondary-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Alert variant="error" title="Error">
+            Submission not found
+          </Alert>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {message && (
-        <Alert 
-          variant={message.type === 'success' ? 'success' : 'error'} 
-          title={message.type === 'success' ? 'Success' : 'Error'}
-          className="mb-6"
-          onClose={() => setMessage(null)}
-        >
-          {message.text}
-        </Alert>
-      )}
+    <div className="min-h-screen bg-secondary-50">
+      {/* Clean Academic Header */}
+      <div className="bg-white border-b border-border">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/dashboard')}
+            className="mb-6 -ml-2"
+            size="sm"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Dashboard
+          </Button>
 
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-secondary-900">Editor Notifications</h1>
-        <p className="text-secondary-600 mt-2">
-          Send decision letters and communications for: <span className="font-medium">{submission.title}</span>
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Decision Letters */}
-        <div className="space-y-6">
-          <div className="card">
-            <div className="card-header">
-              <h2 className="text-xl font-semibold text-secondary-900">Decision Letters</h2>
-            </div>
-            <div className="card-body space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-secondary-700 mb-2">
-                  Select Decision Template
-                </label>
-                <select
-                  value={selectedTemplate}
-                  onChange={(e) => setSelectedTemplate(e.target.value)}
-                  className="w-full border border-secondary-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">Choose a template...</option>
-                  <option value="accept">Accept for Publication</option>
-                  <option value="minor_revision">Minor Revision Required</option>
-                  <option value="major_revision">Major Revision Required</option>
-                  <option value="reject">Reject Manuscript</option>
-                </select>
-              </div>
-
-              {selectedTemplate && (
-                <div>
-                  <label className="block text-sm font-medium text-secondary-700 mb-2">
-                    Template Preview
-                  </label>
-                  <div className="bg-secondary-50 p-4 rounded-lg border max-h-64 overflow-y-auto">
-                    <div className="text-sm text-secondary-700 whitespace-pre-wrap">
-                      {getTemplatePreview()}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-secondary-700 mb-2">
-                  Additional Custom Message (Optional)
-                </label>
-                <textarea
-                  value={customMessage}
-                  onChange={(e) => setCustomMessage(e.target.value)}
-                  rows={4}
-                  className="w-full border border-secondary-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="Add any additional comments or instructions..."
-                />
-              </div>
-
-              <button
-                onClick={sendDecisionLetter}
-                disabled={processing || !selectedTemplate}
-                className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {processing ? 'Sending Decision Letter...' : 'Send Decision Letter'}
-              </button>
-            </div>
-          </div>
-
-          {/* Submission Summary */}
-          <div className="card">
-            <div className="card-header">
-              <h3 className="text-lg font-semibold text-secondary-900">Submission Details</h3>
-            </div>
-            <div className="card-body space-y-3">
-              <div className="grid grid-cols-1 gap-2 text-sm">
-                <div><span className="font-medium text-secondary-700">Title:</span> {submission.title}</div>
-                <div><span className="font-medium text-secondary-700">Author:</span> {submission.author.firstName} {submission.author.lastName}</div>
-                <div><span className="font-medium text-secondary-700">Email:</span> {submission.author.email}</div>
-                <div><span className="font-medium text-secondary-700">Submitted:</span> {new Date(submission.createdAt).toLocaleDateString()}</div>
-                <div><span className="font-medium text-secondary-700">Status:</span> {submission.status.replace(/_/g, ' ')}</div>
-              </div>
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+            <div className="flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3 leading-tight">
+                Editor Notifications
+              </h1>
+              <p className="text-base text-muted-foreground leading-relaxed">
+                Send decision letters and communications for: <span className="font-medium">{submission.title}</span>
+              </p>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Custom Communications */}
-        <div className="space-y-6">
-          <div className="card">
-            <div className="card-header">
-              <h2 className="text-xl font-semibold text-secondary-900">Custom Communication</h2>
-            </div>
-            <div className="card-body space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-secondary-700 mb-2">
-                  Recipient
-                </label>
-                <select
-                  value={recipient}
-                  onChange={(e) => setRecipient(e.target.value as 'AUTHOR' | 'REVIEWERS')}
-                  className="w-full border border-secondary-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {message && (
+          <Alert
+            variant={message.type === 'success' ? 'success' : 'error'}
+            title={message.type === 'success' ? 'Success' : 'Error'}
+            className="mb-6"
+            onClose={() => setMessage(null)}
+          >
+            {message.text}
+          </Alert>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Decision Letters */}
+          <div className="space-y-6">
+            <div className="card">
+              <div className="card-header">
+                <h2 className="text-xl font-semibold text-secondary-900">Decision Letters</h2>
+              </div>
+              <div className="card-body space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-2">
+                    Select Decision Template
+                  </label>
+                  <select
+                    value={selectedTemplate}
+                    onChange={(e) => setSelectedTemplate(e.target.value)}
+                    className="w-full border border-secondary-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">Choose a template...</option>
+                    <option value="accept">Accept for Publication</option>
+                    <option value="minor_revision">Minor Revision Required</option>
+                    <option value="major_revision">Major Revision Required</option>
+                    <option value="reject">Reject Manuscript</option>
+                  </select>
+                </div>
+
+                {selectedTemplate && (
+                  <div>
+                    <label className="block text-sm font-medium text-secondary-700 mb-2">
+                      Template Preview
+                    </label>
+                    <div className="bg-secondary-50 p-4 rounded-lg border max-h-64 overflow-y-auto">
+                      <div className="text-sm text-secondary-700 whitespace-pre-wrap">
+                        {getTemplatePreview()}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-2">
+                    Additional Custom Message (Optional)
+                  </label>
+                  <textarea
+                    value={customMessage}
+                    onChange={(e) => setCustomMessage(e.target.value)}
+                    rows={4}
+                    className="w-full border border-secondary-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="Add any additional comments or instructions..."
+                  />
+                </div>
+
+                <button
+                  onClick={sendDecisionLetter}
+                  disabled={processing || !selectedTemplate}
+                  className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <option value="AUTHOR">Author</option>
-                  <option value="REVIEWERS">Reviewers</option>
-                </select>
+                  {processing ? 'Sending Decision Letter...' : 'Send Decision Letter'}
+                </button>
               </div>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-secondary-700 mb-2">
-                  Subject
-                </label>
-                <input
-                  type="text"
-                  value={emailSubject}
-                  onChange={(e) => setEmailSubject(e.target.value)}
-                  className="w-full border border-secondary-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="Email subject..."
-                />
+            {/* Submission Summary */}
+            <div className="card">
+              <div className="card-header">
+                <h3 className="text-lg font-semibold text-secondary-900">Submission Details</h3>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-secondary-700 mb-2">
-                  Message
-                </label>
-                <textarea
-                  value={emailMessage}
-                  onChange={(e) => setEmailMessage(e.target.value)}
-                  rows={8}
-                  className="w-full border border-secondary-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="Type your message here..."
-                />
+              <div className="card-body space-y-3">
+                <div className="grid grid-cols-1 gap-2 text-sm">
+                  <div><span className="font-medium text-secondary-700">Title:</span> {submission.title}</div>
+                  <div><span className="font-medium text-secondary-700">Author:</span> {submission.author.firstName} {submission.author.lastName}</div>
+                  <div><span className="font-medium text-secondary-700">Email:</span> {submission.author.email}</div>
+                  <div><span className="font-medium text-secondary-700">Submitted:</span> {new Date(submission.createdAt).toLocaleDateString()}</div>
+                  <div><span className="font-medium text-secondary-700">Status:</span> {submission.status.replace(/_/g, ' ')}</div>
+                </div>
               </div>
-
-              <button
-                onClick={sendCustomEmail}
-                disabled={processing || !emailSubject.trim() || !emailMessage.trim()}
-                className="w-full bg-secondary-600 text-white py-2 px-4 rounded-md hover:bg-secondary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {processing ? 'Sending Email...' : 'Send Custom Email'}
-              </button>
             </div>
           </div>
 
-          {/* Quick Templates */}
-          <div className="card">
-            <div className="card-header">
-              <h3 className="text-lg font-semibold text-secondary-900">Quick Templates</h3>
+          {/* Custom Communications */}
+          <div className="space-y-6">
+            <div className="card">
+              <div className="card-header">
+                <h2 className="text-xl font-semibold text-secondary-900">Custom Communication</h2>
+              </div>
+              <div className="card-body space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-2">
+                    Recipient
+                  </label>
+                  <select
+                    value={recipient}
+                    onChange={(e) => setRecipient(e.target.value as 'AUTHOR' | 'REVIEWERS')}
+                    className="w-full border border-secondary-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="AUTHOR">Author</option>
+                    <option value="REVIEWERS">Reviewers</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-2">
+                    Subject
+                  </label>
+                  <input
+                    type="text"
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    className="w-full border border-secondary-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="Email subject..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 mb-2">
+                    Message
+                  </label>
+                  <textarea
+                    value={emailMessage}
+                    onChange={(e) => setEmailMessage(e.target.value)}
+                    rows={8}
+                    className="w-full border border-secondary-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="Type your message here..."
+                  />
+                </div>
+
+                <button
+                  onClick={sendCustomEmail}
+                  disabled={processing || !emailSubject.trim() || !emailMessage.trim()}
+                  className="w-full bg-secondary-600 text-white py-2 px-4 rounded-md hover:bg-secondary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {processing ? 'Sending Email...' : 'Send Custom Email'}
+                </button>
+              </div>
             </div>
-            <div className="card-body space-y-2">
-              <button
-                onClick={() => {
-                  setEmailSubject('Request for Additional Information');
-                  setEmailMessage(`Dear ${submission.author.firstName} ${submission.author.lastName},
+
+            {/* Quick Templates */}
+            <div className="card">
+              <div className="card-header">
+                <h3 className="text-lg font-semibold text-secondary-900">Quick Templates</h3>
+              </div>
+              <div className="card-body space-y-2">
+                <button
+                  onClick={() => {
+                    setEmailSubject('Request for Additional Information');
+                    setEmailMessage(`Dear ${submission.author.firstName} ${submission.author.lastName},
 
 Thank you for your submission. We need some additional information to proceed with the review process.
 
@@ -370,16 +397,16 @@ Please respond within 7 days.
 
 Best regards,
 Editorial Team`);
-                }}
-                className="w-full text-left bg-blue-50 text-blue-700 px-3 py-2 rounded hover:bg-blue-100 transition-colors text-sm"
-              >
-                Request Additional Information
-              </button>
+                  }}
+                  className="w-full text-left bg-blue-50 text-blue-700 px-3 py-2 rounded hover:bg-blue-100 transition-colors text-sm"
+                >
+                  Request Additional Information
+                </button>
 
-              <button
-                onClick={() => {
-                  setEmailSubject('Review Deadline Extension');
-                  setEmailMessage(`Dear Reviewer,
+                <button
+                  onClick={() => {
+                    setEmailSubject('Review Deadline Extension');
+                    setEmailMessage(`Dear Reviewer,
 
 We hope this message finds you well. We are writing regarding the manuscript review for "${submission.title}".
 
@@ -391,17 +418,17 @@ Thank you for your valuable contribution to the peer review process.
 
 Best regards,
 Editorial Team`);
-                  setRecipient('REVIEWERS');
-                }}
-                className="w-full text-left bg-yellow-50 text-yellow-700 px-3 py-2 rounded hover:bg-yellow-100 transition-colors text-sm"
-              >
-                Review Extension Notice
-              </button>
+                    setRecipient('REVIEWERS');
+                  }}
+                  className="w-full text-left bg-yellow-50 text-yellow-700 px-3 py-2 rounded hover:bg-yellow-100 transition-colors text-sm"
+                >
+                  Review Extension Notice
+                </button>
 
-              <button
-                onClick={() => {
-                  setEmailSubject('Manuscript Status Update');
-                  setEmailMessage(`Dear ${submission.author.firstName} ${submission.author.lastName},
+                <button
+                  onClick={() => {
+                    setEmailSubject('Manuscript Status Update');
+                    setEmailMessage(`Dear ${submission.author.firstName} ${submission.author.lastName},
 
 We wanted to provide you with an update on the status of your manuscript titled "${submission.title}".
 
@@ -411,11 +438,12 @@ We appreciate your patience during the review process and will keep you informed
 
 Best regards,
 Editorial Team`);
-                }}
-                className="w-full text-left bg-green-50 text-green-700 px-3 py-2 rounded hover:bg-green-100 transition-colors text-sm"
-              >
-                Status Update
-              </button>
+                  }}
+                  className="w-full text-left bg-green-50 text-green-700 px-3 py-2 rounded hover:bg-green-100 transition-colors text-sm"
+                >
+                  Status Update
+                </button>
+              </div>
             </div>
           </div>
         </div>

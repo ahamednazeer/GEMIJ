@@ -61,6 +61,17 @@ class EditorService {
     return response.data.data!;
   }
 
+  // Handling
+  async acceptHandling(submissionId: string): Promise<Submission> {
+    const response = await axios.post<ApiResponse<Submission>>(`${API_URL}/editor/submissions/${submissionId}/accept-handling`);
+    return response.data.data!;
+  }
+
+  async declineHandling(submissionId: string, reason: string): Promise<Submission> {
+    const response = await axios.post<ApiResponse<Submission>>(`${API_URL}/editor/submissions/${submissionId}/decline-handling`, { reason });
+    return response.data.data!;
+  }
+
   // Initial Screening
   async performInitialScreening(id: string, data: {
     decision: 'PROCEED_TO_REVIEW' | 'REJECT';

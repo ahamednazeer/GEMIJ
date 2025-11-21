@@ -77,6 +77,9 @@ export interface PaymentData {
   paymentMethod?: string;
   transactionId?: string;
   invoiceNumber: string;
+  proofUrl?: string;
+  submissionTitle?: string;
+  authorEmail?: string;
 }
 
 export interface ComplaintData {
@@ -209,6 +212,17 @@ class AdminService {
 
   async resetSettingsToDefault(): Promise<SystemSettings> {
     const response = await axios.post<ApiResponse<SystemSettings>>(`${API_URL}/admin/settings/reset`);
+    return response.data.data!;
+  }
+
+  async uploadPaymentQrCode(file: File): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('qrCode', file);
+    const response = await axios.post<ApiResponse<{ url: string }>>(`${API_URL}/admin/settings/payment-qr`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
     return response.data.data!;
   }
 
@@ -420,6 +434,26 @@ class AdminService {
     format: 'PDF' | 'EXCEL';
   }): Promise<void> {
     await axios.post(`${API_URL}/admin/reports/schedule`, params);
+  }
+
+  // Editor Management
+  async getEditors(): Promise<UserManagementData[]> {
+    const response = await axios.get<ApiResponse<UserManagementData[]>>(`${API_URL}/admin/users`, {
+      params: { role: 'EDITOR' }
+    });
+    return response.data.data!;
+  }
+
+  async assignSubmissionToEditor(submissionId: string, editorId: string, isChief: boolean = false): Promise<void> {
+    await axios.post(`${API_URL}/editor/submissions/${submissionId}/assign-editor`, {
+      editorId,
+      isChief
+    });
+  }
+
+  // Landing Page Configuration
+  async updateLandingPageConfig(config: any): Promise<void> {
+    await axios.put(`${API_URL}/admin/landing-page-config`, config);
   }
 }
 

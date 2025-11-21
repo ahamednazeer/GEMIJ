@@ -80,10 +80,12 @@ const ReviewInvitation: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="text-secondary-600 mt-2">Loading review invitation...</p>
+      <div className="min-h-screen bg-secondary-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+            <p className="text-secondary-600 mt-2">Loading review invitation...</p>
+          </div>
         </div>
       </div>
     );
@@ -91,26 +93,30 @@ const ReviewInvitation: React.FC = () => {
 
   if (error && !review) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Alert variant="error" title="Error">
-          {error}
-        </Alert>
-        <Button onClick={() => navigate('/dashboard')} className="mt-4">
-          Back to Dashboard
-        </Button>
+      <div className="min-h-screen bg-secondary-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Alert variant="error" title="Error">
+            {error}
+          </Alert>
+          <Button onClick={() => navigate('/dashboard')} className="mt-4">
+            Back to Dashboard
+          </Button>
+        </div>
       </div>
     );
   }
 
   if (!review) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Alert variant="error" title="Review Not Found">
-          The review invitation could not be found.
-        </Alert>
-        <Button onClick={() => navigate('/dashboard')} className="mt-4">
-          Back to Dashboard
-        </Button>
+      <div className="min-h-screen bg-secondary-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Alert variant="error" title="Review Not Found">
+            The review invitation could not be found.
+          </Alert>
+          <Button onClick={() => navigate('/dashboard')} className="mt-4">
+            Back to Dashboard
+          </Button>
+        </div>
       </div>
     );
   }
@@ -119,25 +125,38 @@ const ReviewInvitation: React.FC = () => {
   const hasResponded = review.status !== 'PENDING';
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        {!fromEmail && (
-          <Button 
-            variant="ghost" 
-            onClick={() => navigate('/dashboard')}
-            className="mb-4"
-          >
-            ← Back to Dashboard
-          </Button>
-        )}
-        
-        <h1 className="text-3xl font-bold text-secondary-900 mb-2">
-          Review Invitation
-        </h1>
-        <p className="text-secondary-600">
-          You have been invited to review a manuscript
-        </p>
+    <div className="min-h-screen bg-secondary-50">
+      {/* Clean Academic Header */}
+      <div className="bg-white border-b border-border">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {!fromEmail && (
+            <Button
+              variant="ghost"
+              onClick={() => navigate('/dashboard')}
+              className="mb-6 -ml-2"
+              size="sm"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Back to Dashboard
+            </Button>
+          )}
+          
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+            <div className="flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3 leading-tight">
+                Review Invitation
+              </h1>
+              <p className="text-base text-muted-foreground leading-relaxed">
+                You have been invited to review a manuscript
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
       {error && (
         <Alert variant="error" title="Error" className="mb-6">
@@ -382,6 +401,7 @@ const ReviewInvitation: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

@@ -8,6 +8,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (userData: any) => Promise<void>;
   logout: () => void;
+  requestPasswordReset: (email: string) => Promise<void>;
+  resetPassword: (password: string, token: string) => Promise<void>;
   loading: boolean;
   isAuthenticated: boolean;
 }
@@ -82,12 +84,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     authService.setToken(null);
   };
 
+  const requestPasswordReset = async (email: string) => {
+    try {
+      await authService.requestPasswordReset(email);
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const resetPassword = async (password: string, token: string) => {
+    try {
+      await authService.resetPassword(password, token);
+    } catch (error) {
+      throw error;
+    }
+  };
+
   const value = {
     user,
     token,
     login,
     register,
     logout,
+    requestPasswordReset,
+    resetPassword,
     loading,
     isAuthenticated: !!user,
   };

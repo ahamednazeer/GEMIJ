@@ -61,7 +61,7 @@ const ReviewConfirmation: React.FC = () => {
       case 'REJECT':
         return 'error';
       default:
-        return 'secondary';
+        return 'neutral';
     }
   };
 
@@ -82,10 +82,12 @@ const ReviewConfirmation: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="text-secondary-600 mt-2">Loading review...</p>
+      <div className="min-h-screen bg-secondary-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+            <p className="text-secondary-600 mt-2">Loading review...</p>
+          </div>
         </div>
       </div>
     );
@@ -93,45 +95,74 @@ const ReviewConfirmation: React.FC = () => {
 
   if (error && !review) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Alert variant="error" title="Error">
-          {error}
-        </Alert>
-        <Button onClick={() => navigate('/dashboard')} className="mt-4">
-          Back to Dashboard
-        </Button>
+      <div className="min-h-screen bg-secondary-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Alert variant="error" title="Error">
+            {error}
+          </Alert>
+          <Button onClick={() => navigate('/dashboard')} className="mt-4">
+            Back to Dashboard
+          </Button>
+        </div>
       </div>
     );
   }
 
   if (!review || review.status !== 'COMPLETED') {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Alert variant="error" title="Review Not Found">
-          The completed review could not be found.
-        </Alert>
-        <Button onClick={() => navigate('/dashboard')} className="mt-4">
-          Back to Dashboard
-        </Button>
+      <div className="min-h-screen bg-secondary-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Alert variant="error" title="Review Not Found">
+            The completed review could not be found.
+          </Alert>
+          <Button onClick={() => navigate('/dashboard')} className="mt-4">
+            Back to Dashboard
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="text-center mb-8">
-        <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-          <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
+    <div className="min-h-screen bg-secondary-50">
+      {/* Clean Academic Header */}
+      <div className="bg-white border-b border-border">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/dashboard')}
+            className="mb-6 -ml-2"
+            size="sm"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Dashboard
+          </Button>
+          
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+            <div className="flex-1">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="flex items-center justify-center h-16 w-16 rounded-full bg-green-100">
+                  <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2 leading-tight">
+                    Review Submitted Successfully!
+                  </h1>
+                  <p className="text-base text-muted-foreground leading-relaxed">
+                    Thank you for your valuable contribution to the peer review process
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <h1 className="text-3xl font-bold text-secondary-900 mb-2">
-          Review Submitted Successfully!
-        </h1>
-        <p className="text-lg text-secondary-600">
-          Thank you for your valuable contribution to the peer review process
-        </p>
       </div>
+
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
       {error && (
         <Alert variant="error" title="Error" className="mb-6">
@@ -164,7 +195,7 @@ const ReviewConfirmation: React.FC = () => {
                 <div>
                   <label className="text-sm font-medium text-secondary-700">Review Duration</label>
                   <p className="text-secondary-900">
-                    {review.acceptedAt && review.submittedAt ? 
+                    {review.acceptedAt && review.submittedAt ?
                       `${Math.ceil((new Date(review.submittedAt).getTime() - new Date(review.acceptedAt).getTime()) / (1000 * 60 * 60 * 24))} days` :
                       'N/A'
                     }
@@ -222,7 +253,7 @@ const ReviewConfirmation: React.FC = () => {
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-start space-x-3">
               <div className="flex-shrink-0 w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center text-sm font-medium mt-0.5">
                 2
@@ -234,7 +265,7 @@ const ReviewConfirmation: React.FC = () => {
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-start space-x-3">
               <div className="flex-shrink-0 w-6 h-6 bg-primary-600 text-white rounded-full flex items-center justify-center text-sm font-medium mt-0.5">
                 3
@@ -259,11 +290,11 @@ const ReviewConfirmation: React.FC = () => {
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
             <h3 className="font-medium text-blue-900 mb-2">🏆 Thank You for Your Service</h3>
             <p className="text-blue-800 text-sm">
-              Your expert review contributes to the advancement of scientific knowledge and helps maintain 
+              Your expert review contributes to the advancement of scientific knowledge and helps maintain
               the quality of academic publishing. Your time and expertise are greatly appreciated.
             </p>
           </div>
-          
+
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-medium text-secondary-900 mb-1">Download Review Certificate</h3>
@@ -296,7 +327,7 @@ const ReviewConfirmation: React.FC = () => {
               </div>
             </div>
           )}
-          
+
           {review.confidentialComments && (
             <div>
               <label className="text-sm font-medium text-secondary-700">Confidential Comments to Editor</label>
@@ -316,7 +347,7 @@ const ReviewConfirmation: React.FC = () => {
         >
           Back to Dashboard
         </Button>
-        
+
         <Button
           onClick={() => navigate(`/review/${reviewId}`)}
         >
@@ -327,12 +358,13 @@ const ReviewConfirmation: React.FC = () => {
       {/* Footer Message */}
       <div className="text-center mt-8 p-4 bg-green-50 border border-green-200 rounded-lg">
         <p className="text-green-800 text-sm">
-          <strong>Review ID:</strong> {reviewId} • 
+          <strong>Review ID:</strong> {reviewId} •
           <strong> Submitted:</strong> {review.submittedAt ? new Date(review.submittedAt).toLocaleDateString() : 'N/A'}
         </p>
         <p className="text-green-700 text-xs mt-1">
           Keep this information for your records. You can always access your review history from your dashboard.
         </p>
+      </div>
       </div>
     </div>
   );

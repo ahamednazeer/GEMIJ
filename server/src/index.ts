@@ -11,6 +11,11 @@ import editorRoutes from './routes/editor';
 import reviewRoutes from './routes/reviews';
 import publicRoutes from './routes/public';
 import adminRoutes from './routes/admin';
+import paymentRoutes from './routes/payments';
+import notificationRoutes from './routes/notifications';
+import publicationRoutes from './routes/publication';
+import issueConferenceRoutes from './routes/issueConference';
+import feedRoutes from './routes/feed';
 
 dotenv.config();
 
@@ -29,8 +34,8 @@ const limiter = rateLimit({
 
 app.use(helmet());
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.CLIENT_URL 
+  origin: process.env.NODE_ENV === 'production'
+    ? process.env.CLIENT_URL
     : ['http://localhost:3000', 'http://localhost:5173'],
   credentials: true
 }));
@@ -38,7 +43,13 @@ app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// Serve uploaded files with proper CORS headers
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  next();
+}, express.static(path.join(__dirname, '../uploads')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/submissions', submissionRoutes);
@@ -46,6 +57,11 @@ app.use('/api/editor', editorRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/publication', publicationRoutes);
+app.use('/api/admin', issueConferenceRoutes);
+app.use('/feeds', feedRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({
@@ -65,7 +81,7 @@ app.use('*', (req, res) => {
 
 app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled error:', error);
-  
+
   if (error.type === 'entity.too.large') {
     return res.status(413).json({
       success: false,

@@ -30,7 +30,7 @@ class PublicService {
   }
 
   async getArticleById(id: string): Promise<Article> {
-    const response = await axios.get<ApiResponse<Article>>(`${API_URL}/public/article/${id}`);
+    const response = await axios.get<ApiResponse<Article>>(`${API_URL}/public/articles/${id}`);
     return response.data.data!;
   }
 
@@ -59,7 +59,7 @@ class PublicService {
     const response = await axios.get(`${API_URL}/public/articles/${doi}/download`, {
       responseType: 'blob'
     });
-    
+
     const url = window.URL.createObjectURL(new Blob([response.data]));
     const link = document.createElement('a');
     link.href = url;
@@ -68,6 +68,16 @@ class PublicService {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
+  }
+
+  async getLandingPageConfig(): Promise<any> {
+    const response = await axios.get<ApiResponse<any>>(`${API_URL}/public/landing-page-config`);
+    return response.data.data;
+  }
+
+  async getPublicSettings(): Promise<any> {
+    const response = await axios.get<ApiResponse<any>>(`${API_URL}/public/settings`);
+    return response.data.data;
   }
 }
 

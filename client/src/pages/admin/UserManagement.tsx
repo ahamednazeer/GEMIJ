@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import adminService, { UserManagementData } from '@/services/adminService';
 import Alert from '@/components/ui/Alert';
 import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
 
 const UserManagement: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -164,19 +165,43 @@ const UserManagement: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-secondary-900">User Management</h1>
-          <p className="text-secondary-600 mt-1">Manage all system users and their roles</p>
+    <div className="min-h-screen bg-secondary-50">
+      {/* Clean Academic Header */}
+      <div className="bg-white border-b border-border">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/dashboard')}
+            className="mb-6 -ml-2"
+            size="sm"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Dashboard
+          </Button>
+          
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+            <div className="flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3 leading-tight">
+                User Management
+              </h1>
+              <p className="text-base text-muted-foreground leading-relaxed">
+                Manage all system users and their roles
+              </p>
+            </div>
+            <div className="flex-shrink-0">
+              <Button
+                onClick={() => setShowCreateModal(true)}
+              >
+                Create New User
+              </Button>
+            </div>
+          </div>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
-        >
-          Create New User
-        </button>
       </div>
+
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
       {message && (
         <Alert
@@ -559,6 +584,7 @@ const UserManagement: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

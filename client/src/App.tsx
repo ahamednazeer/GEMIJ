@@ -29,9 +29,13 @@ import UserManagement from '@/pages/admin/UserManagement';
 import SystemSettings from '@/pages/admin/SystemSettings';
 import IssueManagement from '@/pages/admin/IssueManagement';
 import PaymentManagement from '@/pages/admin/PaymentManagement';
+import PaymentDetails from '@/pages/admin/PaymentDetails';
+import PaymentSettings from '@/pages/admin/PaymentSettings';
 import SystemMonitoring from '@/pages/admin/SystemMonitoring';
 import ComplaintHandling from '@/pages/admin/ComplaintHandling';
 import ReportGeneration from '@/pages/admin/ReportGeneration';
+import SubmissionAnalytics from '@/pages/admin/SubmissionAnalytics';
+import LandingPageEditor from '@/pages/admin/LandingPageEditor';
 import CurrentIssue from '@/pages/CurrentIssue';
 import Archive from '@/pages/Archive';
 import ArticleView from '@/pages/ArticleView';
@@ -41,7 +45,17 @@ import PeerReview from '@/pages/PeerReview';
 import EditorialBoard from '@/pages/EditorialBoard';
 import Search from '@/pages/Search';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import ForgotPassword from '@/pages/auth/ForgotPassword';
+import Profile from '@/pages/Profile';
 import StyleGuide from '@/pages/StyleGuide';
+import EditorReviewDetail from '@/pages/editor/EditorReviewDetail';
+import Invoice from '@/pages/public/Invoice';
+import ReviewerCertificate from '@/pages/public/ReviewerCertificate';
+import PublicationDashboard from '@/pages/admin/PublicationDashboard';
+import ConferenceManagement from '@/pages/admin/ConferenceManagement';
+import ArticlePage from '@/pages/ArticlePage';
+import IssuePage from '@/pages/IssuePage';
+import BrowseIssues from '@/pages/BrowseIssues';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -65,9 +79,15 @@ function App() {
                 <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/invoice/:paymentId" element={<Invoice />} />
+                <Route path="/certificate/:reviewId" element={<ReviewerCertificate />} />
                 <Route path="/current-issue" element={<CurrentIssue />} />
                 <Route path="/archive" element={<Archive />} />
-                <Route path="/articles/:doi" element={<ArticleView />} />
+                <Route path="/article/:id" element={<ArticlePage />} />
+                <Route path="/issue/:id" element={<IssuePage />} />
+                <Route path="/browse" element={<BrowseIssues />} />
+                <Route path="/article-view/:id" element={<ArticleView />} />
                 <Route path="/search" element={<Search />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/author-guidelines" element={<AuthorGuidelines />} />
@@ -85,6 +105,14 @@ function App() {
                   }
                 />
                 <Route
+                  path="/profile"
+                  element={
+                    <ProtectedRoute>
+                      <Profile />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/submit-paper"
                   element={
                     <ProtectedRoute>
@@ -92,8 +120,17 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+                {/* Author Routes */}
                 <Route
                   path="/submission/:id"
+                  element={
+                    <ProtectedRoute>
+                      <SubmissionDetails />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/author/submissions/:id"
                   element={
                     <ProtectedRoute>
                       <SubmissionDetails />
@@ -109,7 +146,23 @@ function App() {
                   }
                 />
                 <Route
+                  path="/author/submissions/:id/revise"
+                  element={
+                    <ProtectedRoute>
+                      <SubmitRevision />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/submission/:id/payment"
+                  element={
+                    <ProtectedRoute>
+                      <PaymentPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/author/submissions/:id/payment"
                   element={
                     <ProtectedRoute>
                       <PaymentPage />
@@ -124,7 +177,7 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
-                
+
                 {/* Editor Routes */}
                 <Route
                   path="/editor/submission/:id/screen"
@@ -214,6 +267,14 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/editor/review/:id"
+                  element={
+                    <ProtectedRoute>
+                      <EditorReviewDetail />
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* Reviewer Routes */}
                 <Route
@@ -283,6 +344,22 @@ function App() {
                   }
                 />
                 <Route
+                  path="/admin/payments/settings"
+                  element={
+                    <ProtectedRoute>
+                      <PaymentSettings />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/payments/:id"
+                  element={
+                    <ProtectedRoute>
+                      <PaymentDetails />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/admin/monitoring"
                   element={
                     <ProtectedRoute>
@@ -303,6 +380,46 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <ReportGeneration />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/submissions"
+                  element={
+                    <ProtectedRoute>
+                      <SubmissionAnalytics />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/landing-page"
+                  element={
+                    <ProtectedRoute>
+                      <LandingPageEditor />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/publications"
+                  element={
+                    <ProtectedRoute>
+                      <PublicationDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/issues"
+                  element={
+                    <ProtectedRoute>
+                      <IssueManagement />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/conferences"
+                  element={
+                    <ProtectedRoute>
+                      <ConferenceManagement />
                     </ProtectedRoute>
                   }
                 />

@@ -1,10 +1,11 @@
 import React from 'react';
-import { Info, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
+import { Info, CheckCircle2, AlertTriangle, XCircle, X } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
 interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: 'info' | 'success' | 'warning' | 'error' | 'neutral';
   title?: string;
+  onClose?: () => void;
 }
 
 const variants: Record<NonNullable<AlertProps['variant']>, { base: string; icon: React.ElementType; role: 'status' | 'alert' }> = {
@@ -15,7 +16,7 @@ const variants: Record<NonNullable<AlertProps['variant']>, { base: string; icon:
   error: { base: 'bg-red-50 text-red-800 border-red-200', icon: XCircle, role: 'alert' },
 };
 
-const Alert = React.forwardRef<HTMLDivElement, AlertProps>(({ className, variant = 'neutral', title, children, ...props }, ref) => {
+const Alert = React.forwardRef<HTMLDivElement, AlertProps>(({ className, variant = 'neutral', title, children, onClose, ...props }, ref) => {
   const { base, icon: Icon, role } = variants[variant];
   return (
     <div
@@ -26,10 +27,19 @@ const Alert = React.forwardRef<HTMLDivElement, AlertProps>(({ className, variant
     >
       <div className="flex gap-3">
         <Icon className="h-5 w-5 mt-0.5 flex-shrink-0" aria-hidden="true" />
-        <div>
+        <div className="flex-1">
           {title && <h4 className="font-medium mb-1">{title}</h4>}
           <div className="text-sm">{children}</div>
         </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="flex-shrink-0 ml-auto hover:opacity-70 transition-opacity"
+            aria-label="Close alert"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   );
