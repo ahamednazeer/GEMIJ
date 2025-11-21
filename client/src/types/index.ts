@@ -30,6 +30,8 @@ export interface Submission {
   suggestedReviewers?: string[];
   excludedReviewers?: string[];
   comments?: string;
+  decisionType?: string;
+  decisionComments?: string;
   submittedAt?: string;
   acceptedAt?: string;
   publishedAt?: string;
@@ -43,6 +45,8 @@ export interface Submission {
   coAuthors: CoAuthor[];
   files: SubmissionFile[];
   reviews: Review[];
+  revisions?: Revision[];
+  timeline?: TimelineEvent[];
   _count?: {
     reviews: number;
   };
@@ -67,6 +71,24 @@ export interface SubmissionFile {
   filePath: string;
   description?: string;
   isMainFile: boolean;
+  uploadedAt: string;
+}
+
+export interface Revision {
+  id: string;
+  revisionNumber: number;
+  authorResponse?: string;
+  submittedAt: string;
+  files: RevisionFile[];
+}
+
+export interface RevisionFile {
+  id: string;
+  filename: string;
+  originalName: string;
+  fileType: string;
+  fileSize: number;
+  filePath: string;
   uploadedAt: string;
 }
 
@@ -122,6 +144,10 @@ export interface Payment {
   currency: string;
   status: PaymentStatus;
   stripePaymentId?: string;
+  invoiceNumber?: string;
+  invoiceUrl?: string;
+  proofUrl?: string;
+  paymentMethod?: string;
   paidAt?: string;
   createdAt: string;
 }
@@ -150,11 +176,13 @@ export enum UserRole {
 export enum SubmissionStatus {
   DRAFT = 'DRAFT',
   SUBMITTED = 'SUBMITTED',
+  RETURNED_FOR_FORMATTING = 'RETURNED_FOR_FORMATTING',
   INITIAL_REVIEW = 'INITIAL_REVIEW',
   UNDER_REVIEW = 'UNDER_REVIEW',
   REVISION_REQUIRED = 'REVISION_REQUIRED',
   REVISED = 'REVISED',
   ACCEPTED = 'ACCEPTED',
+  PAYMENT_PENDING = 'PAYMENT_PENDING',
   REJECTED = 'REJECTED',
   PUBLISHED = 'PUBLISHED',
   WITHDRAWN = 'WITHDRAWN'
@@ -201,4 +229,34 @@ export interface ReviewFormData {
   confidentialComments?: string;
   authorComments: string;
   rating?: number;
+}
+
+export interface TimelineEvent {
+  id: string;
+  event: string;
+  fromStatus?: string;
+  toStatus?: string;
+  description: string;
+  performedBy?: string;
+  createdAt: string;
+}
+
+export interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  submissionId?: string;
+  createdAt: string;
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  amount: number;
+  currency: string;
+  status: string;
+  invoiceUrl?: string;
+  createdAt: string;
 }

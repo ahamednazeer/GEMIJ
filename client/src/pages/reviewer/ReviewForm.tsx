@@ -25,6 +25,20 @@ const ReviewForm: React.FC = () => {
     rating: 3
   });
 
+  // Auto-save state
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+
+  useEffect(() => {
+    const autoSaveInterval = setInterval(() => {
+      if (isDirty && !submitting && !isCompleted) {
+        handleSaveDraft(true);
+      }
+    }, 10000); // Auto-save every 10 seconds
+
+    return () => clearInterval(autoSaveInterval);
+  }, [isDirty, formData, submitting]);
+
   const [annotatedFile, setAnnotatedFile] = useState<File | null>(null);
 
   useEffect(() => {
@@ -37,7 +51,7 @@ const ReviewForm: React.FC = () => {
     try {
       const data = await reviewService.getReview(reviewId!);
       setReview(data);
-      
+
       // Pre-populate form if review has been started
       if (data.recommendation) {
         setFormData({
@@ -59,16 +73,25 @@ const ReviewForm: React.FC = () => {
       ...prev,
       [field]: value
     }));
+    setIsDirty(true);
   };
 
-  const handleSaveDraft = async () => {
-    setError(null);
+  const handleSaveDraft = async (isAutoSave = false) => {
+    if (!isAutoSave) setError(null);
     try {
       await reviewService.updateReview(reviewId!, formData);
-      setSuccess('Draft saved successfully');
-      setTimeout(() => setSuccess(null), 3000);
+      setLastSaved(new Date());
+      setIsDirty(false);
+      if (!isAutoSave) {
+        setSuccess('Draft saved successfully');
+        setTimeout(() => setSuccess(null), 3000);
+      }
     } catch (error: any) {
-      setError(error.response?.data?.error || 'Failed to save draft');
+      if (!isAutoSave) {
+        setError(error.response?.data?.error || 'Failed to save draft');
+      } else {
+        console.error('Auto-save failed:', error);
+      }
     }
   };
 
@@ -150,10 +173,12 @@ const ReviewForm: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="text-secondary-600 mt-2">Loading review...</p>
+      <div className="min-h-screen bg-secondary-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+            <p className="text-secondary-600 mt-2">Loading review...</p>
+          </div>
         </div>
       </div>
     );
@@ -161,26 +186,30 @@ const ReviewForm: React.FC = () => {
 
   if (error && !review) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Alert variant="error" title="Error">
-          {error}
-        </Alert>
-        <Button onClick={() => navigate('/dashboard')} className="mt-4">
-          Back to Dashboard
-        </Button>
+      <div className="min-h-screen bg-secondary-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Alert variant="error" title="Error">
+            {error}
+          </Alert>
+          <Button onClick={() => navigate('/dashboard')} className="mt-4">
+            Back to Dashboard
+          </Button>
+        </div>
       </div>
     );
   }
 
   if (!review) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Alert variant="error" title="Review Not Found">
-          The review could not be found.
-        </Alert>
-        <Button onClick={() => navigate('/dashboard')} className="mt-4">
-          Back to Dashboard
-        </Button>
+      <div className="min-h-screen bg-secondary-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Alert variant="error" title="Review Not Found">
+            The review could not be found.
+          </Alert>
+          <Button onClick={() => navigate('/dashboard')} className="mt-4">
+            Back to Dashboard
+          </Button>
+        </div>
       </div>
     );
   }
@@ -190,30 +219,46 @@ const ReviewForm: React.FC = () => {
   const isOverdue = daysLeft < 0;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        <Button 
-          variant="ghost" 
-          onClick={() => navigate('/dashboard')}
-          className="mb-4"
-        >
-          ← Back to Dashboard
-        </Button>
-        
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <h1 className="text-3xl font-bold text-secondary-900 mb-2">
-              {isCompleted ? 'Review Completed' : 'Manuscript Review'}
-            </h1>
-            <p className="text-secondary-600">
-              {isCompleted ? 'View your submitted review' : 'Provide your expert evaluation'}
-            </p>
+    <div className="min-h-screen bg-secondary-50">
+      {/* Clean Academic Header */}
+      <div className="bg-white border-b border-border">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/dashboard')}
+            className="mb-6 -ml-2"
+            size="sm"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Dashboard
+          </Button>
+          
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+            <div className="flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3 leading-tight">
+                {isCompleted ? 'Review Completed' : 'Manuscript Review'}
+              </h1>
+              <p className="text-base text-muted-foreground leading-relaxed">
+                {isCompleted ? 'View your submitted review' : 'Provide your expert evaluation'}
+              </p>
+            </div>
+            <div className="flex-shrink-0">
+              <Badge variant={isCompleted ? 'success' : isOverdue ? 'error' : 'warning'}>
+                {isCompleted ? 'Completed' : isOverdue ? 'Overdue' : `${daysLeft} days left`}
+              </Badge>
+            </div>
           </div>
-          <Badge variant={isCompleted ? 'success' : isOverdue ? 'error' : 'warning'}>
-            {isCompleted ? 'Completed' : isOverdue ? 'Overdue' : `${daysLeft} days left`}
-          </Badge>
+          {lastSaved && !isCompleted && (
+            <div className="text-right text-xs text-muted-foreground mt-4">
+              Last saved: {lastSaved.toLocaleTimeString()}
+            </div>
+          )}
         </div>
       </div>
+
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
       {error && (
         <Alert variant="error" title="Error" className="mb-6">
@@ -234,7 +279,7 @@ const ReviewForm: React.FC = () => {
         </div>
         <div className="card-body">
           <h3 className="font-medium text-secondary-900 mb-3">{review.submission.title}</h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="text-sm font-medium text-secondary-700">Type</label>
@@ -305,8 +350,8 @@ const ReviewForm: React.FC = () => {
                     {file.isMainFile && <span className="ml-2 text-primary-600">• Main File</span>}
                   </p>
                 </div>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => downloadManuscript(file.id, file.originalName)}
                 >
@@ -357,9 +402,9 @@ const ReviewForm: React.FC = () => {
           <div className="p-3 rounded-lg border">
             <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getRecommendationColor(formData.recommendation)}`}>
               {formData.recommendation === 'ACCEPT' ? 'Accept' :
-               formData.recommendation === 'MINOR_REVISION' ? 'Minor Revision' :
-               formData.recommendation === 'MAJOR_REVISION' ? 'Major Revision' :
-               'Reject'}
+                formData.recommendation === 'MINOR_REVISION' ? 'Minor Revision' :
+                  formData.recommendation === 'MAJOR_REVISION' ? 'Major Revision' :
+                    'Reject'}
             </span>
           </div>
 
@@ -441,7 +486,7 @@ const ReviewForm: React.FC = () => {
           <>
             <Button
               variant="outline"
-              onClick={handleSaveDraft}
+              onClick={() => handleSaveDraft(false)}
               disabled={submitting}
             >
               Save Draft
@@ -454,7 +499,7 @@ const ReviewForm: React.FC = () => {
             </Button>
           </>
         )}
-        
+
         {isCompleted && (
           <Button onClick={() => navigate('/dashboard')}>
             Back to Dashboard
@@ -474,6 +519,7 @@ const ReviewForm: React.FC = () => {
           </ul>
         </div>
       )}
+      </div>
     </div>
   );
 };

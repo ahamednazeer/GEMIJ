@@ -11,18 +11,21 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@types/react-color": "^3.0.13",
     "axios": "^1.6.2",
     "clsx": "^2.0.0",
     "date-fns": "^2.30.0",
     "framer-motion": "^10.16.5",
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",
+    "react-color": "^2.19.3",
     "react-dom": "^18.2.0",
-    "react-dropzone": "^14.2.3",
+    "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.48.2",
     "react-hot-toast": "^2.4.1",
     "react-pdf": "^7.5.1",
     "react-query": "^3.39.3",
+    "react-quill": "^2.0.0",
     "react-router-dom": "^6.20.1",
     "tailwind-merge": "^2.0.0"
   },

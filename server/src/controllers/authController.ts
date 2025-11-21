@@ -4,6 +4,9 @@ import { hashPassword, comparePassword, generateToken } from '../utils/auth';
 import { CreateUserData, LoginData, AuthenticatedRequest } from '../types';
 import { z } from 'zod';
 
+import { EmailService } from '../services/emailService';
+import crypto from 'crypto';
+
 const prisma = new PrismaClient();
 
 const registerSchema = z.object({
@@ -25,7 +28,7 @@ const loginSchema = z.object({
 export const register = async (req: Request, res: Response) => {
   try {
     const validatedData = registerSchema.parse(req.body);
-    
+
     const existingUser = await prisma.user.findUnique({
       where: { email: validatedData.email }
     });
@@ -38,7 +41,7 @@ export const register = async (req: Request, res: Response) => {
     }
 
     const hashedPassword = await hashPassword(validatedData.password);
-    
+
     const user = await prisma.user.create({
       data: {
         ...validatedData,
@@ -50,6 +53,7 @@ export const register = async (req: Request, res: Response) => {
         firstName: true,
         lastName: true,
         role: true,
+        isActive: true,
         createdAt: true
       }
     });
@@ -88,7 +92,7 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   try {
     const validatedData = loginSchema.parse(req.body);
-    
+
     const user = await prisma.user.findUnique({
       where: { email: validatedData.email }
     });
@@ -101,7 +105,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     const isPasswordValid = await comparePassword(validatedData.password, user.password);
-    
+
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
@@ -128,7 +132,8 @@ export const login = async (req: Request, res: Response) => {
           email: user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          role: user.role
+          role: user.role,
+          isActive: user.isActive
         },
         token
       },
@@ -166,6 +171,7 @@ export const getProfile = async (req: AuthenticatedRequest, res: Response) => {
         orcid: true,
         bio: true,
         role: true,
+        isActive: true,
         createdAt: true,
         lastLoginAt: true
       }
@@ -204,7 +210,7 @@ export const updateProfile = async (req: AuthenticatedRequest, res: Response) =>
     });
 
     const validatedData = updateSchema.parse(req.body);
-    
+
     const user = await prisma.user.update({
       where: { id: req.user!.id },
       data: validatedData,
@@ -218,7 +224,8 @@ export const updateProfile = async (req: AuthenticatedRequest, res: Response) =>
         country: true,
         orcid: true,
         bio: true,
-        role: true
+        role: true,
+        isActive: true
       }
     });
 
@@ -237,6 +244,113 @@ export const updateProfile = async (req: AuthenticatedRequest, res: Response) =>
     }
 
     console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email is required'
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: resetToken,
+        passwordResetExpires: resetTokenExpiry
+      }
+    });
+
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+    await EmailService.sendPasswordResetEmail(user.email, resetUrl, `${user.firstName} ${user.lastName}`);
+
+    res.json({
+      success: true,
+      message: 'Password reset email sent'
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token and password are required'
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 8 characters long'
+      });
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        passwordResetToken: token,
+        passwordResetExpires: {
+          gt: new Date()
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or expired reset token'
+      });
+    }
+
+    const hashedPassword = await hashPassword(password);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordResetToken: null,
+        passwordResetExpires: null
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error'

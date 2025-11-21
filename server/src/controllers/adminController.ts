@@ -2,6 +2,9 @@ import { Response } from 'express';
 import os from 'os';
 import { PrismaClient, PaymentStatus, SubmissionStatus, UserRole, Prisma } from '@prisma/client';
 import { AuthenticatedRequest } from '../types';
+import { TimelineService } from '../services/timelineService';
+import { createNotification } from './notificationController';
+import { EmailService } from '../services/emailService';
 
 const prisma = new PrismaClient();
 
@@ -103,63 +106,131 @@ export const getSubmissionStats = async (req: AuthenticatedRequest, res: Respons
   try {
     const period = typeof req.query.period === 'string' ? req.query.period.toUpperCase() : 'MONTHLY';
     const now = new Date();
-    const startDate = period === 'YEARLY'
-      ? new Date(now.getFullYear(), 0, 1)
-      : new Date(now.getFullYear(), now.getMonth(), 1);
+    let startDate: Date;
 
-    const [totalSubmissions, acceptedSubmissions, rejectedSubmissions, pendingSubmissions] = await Promise.all([
-      prisma.submission.count({
-        where: {
-          submittedAt: {
-            gte: startDate
-          }
+    switch (period) {
+      case 'DAILY':
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      case 'WEEKLY':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'YEARLY':
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+      case 'MONTHLY':
+      default:
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+    }
+
+    // Get all submissions in the period
+    const submissions = await prisma.submission.findMany({
+      where: {
+        submittedAt: {
+          gte: startDate
         }
-      }),
-      prisma.submission.count({
-        where: {
-          status: SubmissionStatus.ACCEPTED,
-          submittedAt: {
-            gte: startDate
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true
           }
-        }
-      }),
-      prisma.submission.count({
-        where: {
-          status: SubmissionStatus.REJECTED,
-          submittedAt: {
-            gte: startDate
+        },
+        editorAssignments: {
+          include: {
+            editor: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true
+              }
+            }
           }
-        }
-      }),
-      prisma.submission.count({
-        where: {
-          status: {
-            in: [
-              SubmissionStatus.SUBMITTED,
-              SubmissionStatus.UNDER_REVIEW,
-              SubmissionStatus.REVISION_REQUIRED
-            ]
+        },
+        reviews: {
+          where: {
+            status: 'COMPLETED'
           },
-          submittedAt: {
-            gte: startDate
+          select: {
+            submittedAt: true
           }
         }
-      })
-    ]);
+      },
+      orderBy: {
+        submittedAt: 'desc'
+      }
+    });
 
-    const acceptanceRate = totalSubmissions === 0
-      ? 0
-      : Math.round((acceptedSubmissions / totalSubmissions) * 100);
+    // Calculate stats
+    const totalSubmissions = submissions.length;
+    const acceptedSubmissions = submissions.filter(s => s.status === SubmissionStatus.ACCEPTED).length;
+    const rejectedSubmissions = submissions.filter(s => s.status === SubmissionStatus.REJECTED).length;
+
+    const acceptanceRate = totalSubmissions === 0 ? 0 : (acceptedSubmissions / totalSubmissions) * 100;
+    const rejectionRate = totalSubmissions === 0 ? 0 : (rejectedSubmissions / totalSubmissions) * 100;
+
+    // Calculate average review time
+    let totalReviewDays = 0;
+    let reviewedCount = 0;
+    submissions.forEach(submission => {
+      if (submission.submittedAt && submission.reviews.length > 0) {
+        submission.reviews.forEach(review => {
+          if (review.submittedAt) {
+            const days = Math.ceil((review.submittedAt.getTime() - submission.submittedAt!.getTime()) / (1000 * 60 * 60 * 24));
+            totalReviewDays += days;
+            reviewedCount++;
+          }
+        });
+      }
+    });
+    const averageReviewTime = reviewedCount > 0 ? Math.round(totalReviewDays / reviewedCount) : 0;
+
+    // Group by status
+    const byStatus: { [key: string]: number } = {};
+    submissions.forEach(submission => {
+      byStatus[submission.status] = (byStatus[submission.status] || 0) + 1;
+    });
+
+    // Group by manuscript type
+    const byManuscriptType: { [key: string]: number } = {};
+    submissions.forEach(submission => {
+      byManuscriptType[submission.manuscriptType] = (byManuscriptType[submission.manuscriptType] || 0) + 1;
+    });
+
+    // Format recent submissions (last 20)
+    const recentSubmissions = submissions.slice(0, 20).map(submission => {
+      const chiefEditor = submission.editorAssignments.find(ea => ea.isChief);
+      const anyEditor = submission.editorAssignments[0];
+      const assignedEditor = chiefEditor || anyEditor;
+
+      return {
+        id: submission.id,
+        title: submission.title,
+        authorName: `${submission.author.firstName} ${submission.author.lastName}`,
+        status: submission.status,
+        manuscriptType: submission.manuscriptType,
+        submittedDate: submission.submittedAt?.toISOString() || submission.createdAt.toISOString(),
+        assignedEditor: assignedEditor ? {
+          id: assignedEditor.editor.id,
+          name: `${assignedEditor.editor.firstName} ${assignedEditor.editor.lastName}`,
+          isChief: assignedEditor.isChief
+        } : undefined
+      };
+    });
 
     res.json({
       success: true,
       data: {
-        period,
         totalSubmissions,
-        acceptedSubmissions,
-        rejectedSubmissions,
-        pendingSubmissions,
-        acceptanceRate
+        acceptanceRate,
+        rejectionRate,
+        averageReviewTime,
+        byStatus,
+        byManuscriptType,
+        recentSubmissions
       }
     });
   } catch (error) {
@@ -337,6 +408,22 @@ export const getAdminUsers = async (req: AuthenticatedRequest, res: Response) =>
         { email: { contains: term, mode: 'insensitive' } },
         { affiliation: { contains: term, mode: 'insensitive' } }
       ];
+
+      // Handle full name search
+      if (term.includes(' ')) {
+        const parts = term.split(/\s+/);
+        if (parts.length >= 2) {
+          const firstNamePart = parts[0];
+          const lastNamePart = parts.slice(1).join(' ');
+
+          where.OR.push({
+            AND: [
+              { firstName: { contains: firstNamePart, mode: 'insensitive' } },
+              { lastName: { contains: lastNamePart, mode: 'insensitive' } }
+            ]
+          });
+        }
+      }
     }
 
     const sortFieldMap: Record<string, keyof Prisma.UserOrderByWithRelationInput> = {
@@ -577,6 +664,377 @@ export const getFinancialStats = async (req: AuthenticatedRequest, res: Response
     });
   } catch (error) {
     console.error('Get financial stats error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const getSystemSettings = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const settings = await prisma.systemSettings.findMany({
+      orderBy: { key: 'asc' }
+    });
+
+    // Convert to key-value object
+    const settingsObject: Record<string, any> = {};
+    settings.forEach(setting => {
+      let value: any = setting.value;
+
+      // Parse value based on type
+      if (setting.type === 'number') {
+        value = parseFloat(setting.value);
+      } else if (setting.type === 'boolean') {
+        value = setting.value === 'true';
+      } else if (setting.type === 'decimal') {
+        value = parseFloat(setting.value);
+      }
+
+      settingsObject[setting.key] = value;
+    });
+
+    res.json({
+      success: true,
+      data: settingsObject
+    });
+  } catch (error) {
+    console.error('Get system settings error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const getAdminIssues = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { page, limit, skip } = parsePaginationParams(req.query);
+    const { status } = req.query;
+
+    const where: Prisma.IssueWhereInput = {};
+
+    if (status && typeof status === 'string') {
+      if (status === 'current') {
+        where.isCurrent = true;
+      } else if (status === 'published') {
+        where.publishedAt = { not: null };
+      } else if (status === 'draft') {
+        where.publishedAt = null;
+      }
+    }
+
+    const [issues, total] = await Promise.all([
+      prisma.issue.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [
+          { volume: 'desc' },
+          { number: 'desc' }
+        ],
+        include: {
+          _count: {
+            select: {
+              articles: true
+            }
+          }
+        }
+      }),
+      prisma.issue.count({ where })
+    ]);
+
+    const formattedIssues = issues.map(issue => ({
+      id: issue.id,
+      volume: issue.number,
+      issue: issue.number,
+      year: issue.publishedAt ? new Date(issue.publishedAt).getFullYear() : new Date().getFullYear(),
+      title: issue.title,
+      description: issue.description,
+      coverImage: issue.coverImage,
+      publishedDate: issue.publishedAt?.toISOString() || null,
+      status: issue.publishedAt ? 'PUBLISHED' : 'DRAFT',
+      articlesCount: issue._count.articles
+    }));
+
+    res.json({
+      success: true,
+      data: formattedIssues,
+      pagination: buildPaginationMeta(page, limit, total)
+    });
+  } catch (error) {
+    console.error('Get admin issues error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const updateLandingPageConfig = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const config = req.body;
+
+    // Validate config structure (basic validation)
+    if (!config || typeof config !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid configuration data'
+      });
+    }
+
+    // Store as JSON string in SystemSettings
+    await prisma.systemSettings.upsert({
+      where: { key: 'landing_page_config' },
+      update: {
+        value: JSON.stringify(config)
+      },
+      create: {
+        key: 'landing_page_config',
+        value: JSON.stringify(config),
+        type: 'json'
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Landing page configuration updated successfully'
+    });
+  } catch (error) {
+    console.error('Update landing page config error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const updateSystemSettings = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const settings = req.body;
+
+    // Process each setting
+    const updates = Object.entries(settings).map(async ([key, value]) => {
+      // Determine type
+      let type = 'string';
+      let stringValue = String(value);
+
+      if (typeof value === 'number') {
+        type = 'number';
+      } else if (typeof value === 'boolean') {
+        type = 'boolean';
+      }
+
+      return prisma.systemSettings.upsert({
+        where: { key },
+        update: { value: stringValue, type },
+        create: { key, value: stringValue, type }
+      });
+    });
+
+    await Promise.all(updates);
+
+    res.json({
+      success: true,
+      message: 'Settings updated successfully'
+    });
+  } catch (error) {
+    console.error('Update system settings error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const uploadPaymentQrCode = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded'
+      });
+    }
+
+    const filePath = req.file.path; // Assuming relative path is returned by upload middleware
+
+    await prisma.systemSettings.upsert({
+      where: { key: 'payment_qr_code_url' },
+      update: { value: filePath, type: 'string' },
+      create: {
+        key: 'payment_qr_code_url',
+        value: filePath,
+        type: 'string'
+      }
+    });
+
+    res.json({
+      success: true,
+      data: { url: filePath },
+      message: 'QR code uploaded successfully'
+    });
+  } catch (error) {
+    console.error('Upload payment QR code error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+
+export const getPaymentById = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { paymentId } = req.params;
+
+    const payment = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        submission: {
+          select: {
+            id: true,
+            title: true
+          }
+        },
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Payment not found'
+      });
+    }
+
+    const formattedPayment = {
+      id: payment.id,
+      submissionId: payment.submission.id,
+      submissionTitle: payment.submission.title,
+      authorId: payment.user.id,
+      authorName: `${payment.user.firstName} ${payment.user.lastName}`,
+      authorEmail: payment.user.email,
+      amount: Number(payment.amount),
+      currency: payment.currency,
+      status: payment.status,
+      paymentDate: payment.paidAt,
+      paymentMethod: payment.paymentMethod,
+      transactionId: payment.stripePaymentId,
+      invoiceNumber: payment.invoiceNumber || 'N/A',
+      proofUrl: payment.proofUrl
+    };
+
+    res.json({
+      success: true,
+      data: formattedPayment
+    });
+  } catch (error) {
+    console.error('Get payment by id error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+export const markPaymentAsPaid = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { paymentId } = req.params;
+    const { transactionId } = req.body;
+
+    const payment = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        submission: {
+          include: {
+            author: true
+          }
+        }
+      }
+    });
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Payment not found'
+      });
+    }
+
+    if (payment.status === 'PAID') {
+      return res.status(400).json({
+        success: false,
+        error: 'Payment is already marked as paid'
+      });
+    }
+
+    // Update payment status
+    const updatedPayment = await prisma.payment.update({
+      where: { id: paymentId },
+      data: {
+        status: 'PAID',
+        paidAt: new Date(),
+        stripePaymentId: transactionId || payment.stripePaymentId // Store manual TX ID if provided
+      }
+    });
+
+    // Auto-publish after payment (mirroring webhook logic)
+    await prisma.submission.update({
+      where: { id: payment.submissionId },
+      data: {
+        status: 'ACCEPTED'
+      }
+    });
+
+    // Add timeline events
+    await TimelineService.addPaymentReceivedEvent(
+      payment.submissionId,
+      Number(payment.amount),
+      payment.currency
+    );
+
+    await TimelineService.addStatusChangeEvent(
+      payment.submissionId,
+      'PAYMENT_PENDING',
+      'ACCEPTED',
+      req.user!.id
+    );
+
+    // Create notification
+    await createNotification(
+      payment.userId,
+      'PAYMENT_RECEIVED',
+      'Payment Received',
+      `Your payment for "${payment.submission.title}" has been confirmed. Your article is now ready for final publication steps.`,
+      payment.submissionId
+    );
+
+    // Send email notification
+    try {
+      await EmailService.sendPaymentReceivedNotification(payment.submissionId);
+    } catch (emailError) {
+      console.error('Failed to send payment received email:', emailError);
+    }
+
+    // Actually, I should add imports first.
+
+    // Let's return success for now and handle side effects if I can import them.
+    // But the user expects the flow to work.
+    // I will add imports in a separate `replace_file_content` call at the top of the file.
+
+    res.json({
+      success: true,
+      data: updatedPayment,
+      message: 'Payment marked as paid successfully'
+    });
+
+  } catch (error) {
+    console.error('Mark payment as paid error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error'

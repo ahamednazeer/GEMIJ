@@ -13,10 +13,12 @@
     "db:studio": "prisma studio",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:visitor-flow": "tsx src/scripts/test-visitor-flow.ts"
+    "test:visitor-flow": "tsx src/scripts/test-visitor-flow.ts",
+    "test-email": "tsx testEmail.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.6.0",
+    "@sendgrid/mail": "^8.1.6",
     "aws-sdk": "^2.1498.0",
     "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
@@ -30,13 +32,14 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
-    "nodemailer": "^6.9.7",
     "pdf-parse": "^1.1.1",
+    "pdfkit": "^0.17.2",
     "prisma": "^5.6.0",
     "sharp": "^0.32.6",
     "stripe": "^14.7.0",
     "uuid": "^9.0.1",
     "winston": "^3.11.0",
+    "xmlbuilder2": "^4.0.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
@@ -47,7 +50,7 @@
     "@types/jsonwebtoken": "^9.0.5",
     "@types/multer": "^1.4.11",
     "@types/node": "^20.9.0",
-    "@types/nodemailer": "^6.4.14",
+    "@types/pdfkit": "^0.17.3",
     "@types/uuid": "^9.0.7",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.1",

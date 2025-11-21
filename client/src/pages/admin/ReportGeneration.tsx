@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import adminService, { ReportData } from '@/services/adminService';
 import Alert from '@/components/ui/Alert';
 import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
 
 const ReportGeneration: React.FC = () => {
   const navigate = useNavigate();
@@ -150,19 +151,36 @@ const ReportGeneration: React.FC = () => {
   ];
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-secondary-900">Report Generation</h1>
-          <p className="text-secondary-600 mt-1">Generate and manage system reports</p>
+    <div className="min-h-screen bg-secondary-50">
+      {/* Clean Academic Header */}
+      <div className="bg-white border-b border-border">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/dashboard')}
+            className="mb-6 -ml-2"
+            size="sm"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Dashboard
+          </Button>
+          
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+            <div className="flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3 leading-tight">
+                Report Generation
+              </h1>
+              <p className="text-base text-muted-foreground leading-relaxed">
+                Generate and manage system reports
+              </p>
+            </div>
+          </div>
         </div>
-        <button
-          onClick={() => navigate('/admin')}
-          className="px-4 py-2 text-secondary-600 hover:text-secondary-800"
-        >
-          Back to Dashboard
-        </button>
       </div>
+
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
       {message && (
         <Alert
@@ -493,6 +511,7 @@ const ReportGeneration: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

@@ -68,6 +68,14 @@ class AuthService {
     const response = await axios.put<ApiResponse<User>>(`${API_URL}/auth/profile`, userData);
     return response.data.data!;
   }
+
+  async requestPasswordReset(email: string): Promise<void> {
+    await axios.post(`${API_URL}/auth/forgot-password`, { email });
+  }
+
+  async resetPassword(password: string, token: string): Promise<void> {
+    await axios.post(`${API_URL}/auth/reset-password`, { password, token });
+  }
 }
 
 export const authService = new AuthService();

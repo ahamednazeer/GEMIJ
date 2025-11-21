@@ -156,6 +156,7 @@ export const getArticle = async (req: Request, res: Response) => {
 export const getArticleById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    console.log('getArticleById called with id:', id);
 
     const article = await prisma.article.findUnique({
       where: { id },
@@ -163,6 +164,8 @@ export const getArticleById = async (req: Request, res: Response) => {
         issue: true
       }
     });
+
+    console.log('Article found:', article ? 'Yes' : 'No');
 
     if (!article) {
       return res.status(404).json({
@@ -373,6 +376,81 @@ export const getJournalStats = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Get journal stats error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const getLandingPageConfig = async (req: Request, res: Response) => {
+  try {
+    const setting = await prisma.systemSettings.findUnique({
+      where: { key: 'landing_page_config' }
+    });
+
+    if (!setting) {
+      return res.json({
+        success: true,
+        data: null
+      });
+    }
+
+    const config = JSON.parse(setting.value);
+
+    res.json({
+      success: true,
+      data: config
+    });
+  } catch (error) {
+    console.error('Get landing page config error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const getPublicSettings = async (req: Request, res: Response) => {
+  try {
+    // Define keys that are safe to expose publicly
+    const publicKeys = [
+      'journalName',
+      'journalDescription',
+      'contactEmail',
+      'apcFee',
+      'currency',
+      'bankAccountName',
+      'bankAccountNumber',
+      'bankName',
+      'bankIfsc',
+      'upiId',
+      'payment_qr_code_url',
+      'enableBankTransfer',
+      'enableUpi'
+    ];
+
+    const settings = await prisma.systemSettings.findMany({
+      where: {
+        key: { in: publicKeys }
+      }
+    });
+
+    const settingsObject: Record<string, any> = {};
+    settings.forEach(setting => {
+      let value: any = setting.value;
+      if (setting.type === 'number') value = parseFloat(setting.value);
+      else if (setting.type === 'boolean') value = setting.value === 'true';
+
+      settingsObject[setting.key] = value;
+    });
+
+    res.json({
+      success: true,
+      data: settingsObject
+    });
+  } catch (error) {
+    console.error('Get public settings error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error'

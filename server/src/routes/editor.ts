@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { 
-  getEditorSubmissions, 
+import {
+  getEditorSubmissions,
   getEditorStats,
-  assignEditor, 
-  assignReviewer, 
-  makeDecision, 
+  assignEditor,
+  assignReviewer,
+  makeDecision,
   getReviewers,
   getOverdueReviews,
   getIssues,
@@ -28,7 +28,9 @@ import {
   sendCustomEmail,
   runPlagiarismCheck,
   performQualityCheck,
-  getSubmissionTimeline
+  getSubmissionTimeline,
+  acceptHandling,
+  declineHandling
 } from '../controllers/editorController';
 import { authenticate, authorize } from '../middleware/auth';
 import { UserRole } from '@prisma/client';
@@ -67,6 +69,10 @@ router.post('/submissions/:submissionId/plagiarism-check', runPlagiarismCheck);
 router.post('/submissions/:submissionId/quality-check', performQualityCheck);
 router.post('/reviews/:reviewId/remind', sendReviewerReminder);
 router.post('/issues/:issueId/articles', addArticleToIssue);
+
+// New routes for Editor Flow Phase 1 & 2
+router.post('/submissions/:submissionId/accept-handling', acceptHandling);
+router.post('/submissions/:submissionId/decline-handling', declineHandling);
 
 router.put('/submissions/:submissionId/status', updateSubmissionStatus);
 router.put('/reviews/:reviewId/extend-deadline', extendReviewDeadline);

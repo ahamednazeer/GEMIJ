@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, SubmissionStatus } from '@prisma/client';
 import { AuthenticatedRequest } from '../types';
 import { z } from 'zod';
 import { EmailService } from '../services/emailService';
@@ -12,7 +12,7 @@ const assignReviewerSchema = z.object({
 });
 
 const decisionSchema = z.object({
-  decision: z.enum(['ACCEPT', 'REJECT', 'REVISION_REQUIRED']),
+  decision: z.enum(['ACCEPT', 'MINOR_REVISION', 'MAJOR_REVISION', 'REJECT']),
   comments: z.string().optional(),
   editorComments: z.string().optional()
 });
@@ -21,9 +21,9 @@ export const getEditorSubmissions = async (req: AuthenticatedRequest, res: Respo
   try {
     const { status, page = 1, limit = 10 } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
-    
+
     const where: any = {};
-    
+
     if (req.user!.role === 'EDITOR') {
       where.OR = [
         {
@@ -41,7 +41,7 @@ export const getEditorSubmissions = async (req: AuthenticatedRequest, res: Respo
         }
       ];
     }
-    
+
     if (status && status !== 'all') {
       where.status = status;
     }
@@ -97,7 +97,7 @@ export const getEditorSubmissions = async (req: AuthenticatedRequest, res: Respo
       prisma.submission.count({ where })
     ]);
 
-    res.json({
+    return res.json({
       success: true,
       data: submissions,
       pagination: {
@@ -109,7 +109,7 @@ export const getEditorSubmissions = async (req: AuthenticatedRequest, res: Respo
     });
   } catch (error) {
     console.error('Get editor submissions error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -120,7 +120,7 @@ export const assignEditor = async (req: AuthenticatedRequest, res: Response) => 
   try {
     const { submissionId } = req.params;
     const { editorId, isChief = false } = req.body;
-    
+
     const submission = await prisma.submission.findUnique({
       where: { id: submissionId }
     });
@@ -168,14 +168,14 @@ export const assignEditor = async (req: AuthenticatedRequest, res: Response) => 
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: assignment,
       message: 'Editor assigned successfully'
     });
   } catch (error) {
     console.error('Assign editor error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -186,7 +186,7 @@ export const assignReviewer = async (req: AuthenticatedRequest, res: Response) =
   try {
     const { submissionId } = req.params;
     const validatedData = assignReviewerSchema.parse(req.body);
-    
+
     const submission = await prisma.submission.findUnique({
       where: { id: submissionId },
       include: {
@@ -276,7 +276,7 @@ export const assignReviewer = async (req: AuthenticatedRequest, res: Response) =
       console.error('Failed to send reviewer invitation email:', emailError);
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: review,
       message: 'Reviewer assigned successfully and invitation email sent'
@@ -291,7 +291,7 @@ export const assignReviewer = async (req: AuthenticatedRequest, res: Response) =
     }
 
     console.error('Assign reviewer error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -302,7 +302,7 @@ export const makeDecision = async (req: AuthenticatedRequest, res: Response) => 
   try {
     const { submissionId } = req.params;
     const validatedData = decisionSchema.parse(req.body);
-    
+
     const submission = await prisma.submission.findUnique({
       where: { id: submissionId },
       include: {
@@ -311,7 +311,8 @@ export const makeDecision = async (req: AuthenticatedRequest, res: Response) => 
             editorId: req.user!.id
           }
         },
-        reviews: true
+        reviews: true,
+        author: true
       }
     });
 
@@ -330,7 +331,7 @@ export const makeDecision = async (req: AuthenticatedRequest, res: Response) => 
     }
 
     const completedReviews = submission.reviews.filter(r => r.status === 'COMPLETED');
-    
+
     if (completedReviews.length === 0 && validatedData.decision !== 'REJECT') {
       return res.status(400).json({
         success: false,
@@ -338,23 +339,31 @@ export const makeDecision = async (req: AuthenticatedRequest, res: Response) => 
       });
     }
 
-    let newStatus;
+    // Check if APC is enabled
+    const apcEnabled = process.env.APC_ENABLED === 'true';
+
+    let newStatus: SubmissionStatus;
     switch (validatedData.decision) {
       case 'ACCEPT':
-        newStatus = 'ACCEPTED';
+        // Always set to PAYMENT_PENDING for accept
+        newStatus = 'PAYMENT_PENDING' as SubmissionStatus;
         break;
       case 'REJECT':
-        newStatus = 'REJECTED';
+        newStatus = SubmissionStatus.REJECTED;
         break;
-      case 'REVISION_REQUIRED':
-        newStatus = 'REVISION_REQUIRED';
+      case 'MINOR_REVISION':
+      case 'MAJOR_REVISION':
+        newStatus = SubmissionStatus.REVISION_REQUIRED;
         break;
+      default:
+        newStatus = submission.status;
     }
 
     const updatedSubmission = await prisma.submission.update({
       where: { id: submissionId },
       data: {
         status: newStatus,
+        comments: validatedData.comments || validatedData.editorComments,
         ...(validatedData.decision === 'ACCEPT' && { acceptedAt: new Date() })
       },
       include: {
@@ -372,7 +381,49 @@ export const makeDecision = async (req: AuthenticatedRequest, res: Response) => 
       }
     });
 
-    res.json({
+    // If ACCEPT and APC enabled, create payment invoice
+    if (validatedData.decision === 'ACCEPT' && apcEnabled) {
+      const apcAmount = parseFloat(process.env.APC_AMOUNT || '299.00');
+      const currency = process.env.APC_CURRENCY || 'INR';
+      const invoiceNumber = `INV-${Date.now()}-${submissionId.substring(0, 8).toUpperCase()}`;
+
+      await prisma.payment.create({
+        data: {
+          amount: apcAmount,
+          currency,
+          status: 'PENDING',
+          userId: submission.authorId,
+          submissionId
+        }
+      });
+
+      // Send acceptance email with payment instructions
+      try {
+        await EmailService.sendAcceptanceNotification(submissionId);
+      } catch (emailError) {
+        console.error('Failed to send acceptance email:', emailError);
+      }
+    }
+
+    // Send decision notification email with reviewer comments
+    try {
+      await EmailService.sendDecisionNotification(submissionId, validatedData.decision);
+    } catch (emailError) {
+      console.error('Failed to send decision email:', emailError);
+    }
+
+    // Create in-app notification for author
+    await prisma.notification.create({
+      data: {
+        userId: submission.authorId,
+        type: 'DECISION_MADE',
+        title: `Decision on Your Submission`,
+        message: `A decision has been made on your submission "${submission.title}": ${validatedData.decision}`,
+        submissionId
+      }
+    });
+
+    return res.json({
       success: true,
       data: updatedSubmission,
       message: `Decision made: ${validatedData.decision}`
@@ -387,18 +438,19 @@ export const makeDecision = async (req: AuthenticatedRequest, res: Response) => 
     }
 
     console.error('Make decision error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
   }
 };
 
+
 export const getReviewers = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { search, page = 1, limit = 20 } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
-    
+
     const where: any = {
       role: {
         in: ['REVIEWER', 'EDITOR', 'ADMIN']
@@ -445,7 +497,7 @@ export const getReviewers = async (req: AuthenticatedRequest, res: Response) => 
       prisma.user.count({ where })
     ]);
 
-    res.json({
+    return res.json({
       success: true,
       data: reviewers,
       pagination: {
@@ -457,7 +509,7 @@ export const getReviewers = async (req: AuthenticatedRequest, res: Response) => 
     });
   } catch (error) {
     console.error('Get reviewers error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -466,7 +518,7 @@ export const getReviewers = async (req: AuthenticatedRequest, res: Response) => 
 
 export const getEditorStats = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const baseWhere = req.user!.role === 'EDITOR' ? {
+    const baseWhere: any = req.user!.role === 'EDITOR' ? {
       OR: [
         {
           editorAssignments: {
@@ -494,15 +546,15 @@ export const getEditorStats = async (req: AuthenticatedRequest, res: Response) =
       published
     ] = await Promise.all([
       prisma.submission.count({ where: baseWhere }),
-      prisma.submission.count({ where: { ...baseWhere, status: 'SUBMITTED' } }),
-      prisma.submission.count({ where: { ...baseWhere, status: 'UNDER_REVIEW' } }),
-      prisma.submission.count({ where: { ...baseWhere, status: 'REVISION_REQUIRED' } }),
-      prisma.submission.count({ where: { ...baseWhere, status: 'ACCEPTED' } }),
-      prisma.submission.count({ where: { ...baseWhere, status: 'REJECTED' } }),
-      prisma.submission.count({ where: { ...baseWhere, status: 'PUBLISHED' } })
+      prisma.submission.count({ where: { ...baseWhere, status: 'SUBMITTED' as SubmissionStatus } }),
+      prisma.submission.count({ where: { ...baseWhere, status: 'UNDER_REVIEW' as SubmissionStatus } }),
+      prisma.submission.count({ where: { ...baseWhere, status: 'REVISION_REQUIRED' as SubmissionStatus } }),
+      prisma.submission.count({ where: { ...baseWhere, status: 'ACCEPTED' as SubmissionStatus } }),
+      prisma.submission.count({ where: { ...baseWhere, status: 'REJECTED' as SubmissionStatus } }),
+      prisma.submission.count({ where: { ...baseWhere, status: 'PUBLISHED' as SubmissionStatus } })
     ]);
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         totalSubmissions,
@@ -516,7 +568,7 @@ export const getEditorStats = async (req: AuthenticatedRequest, res: Response) =
     });
   } catch (error) {
     console.error('Get editor stats error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -526,7 +578,7 @@ export const getEditorStats = async (req: AuthenticatedRequest, res: Response) =
 export const getOverdueReviews = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const now = new Date();
-    
+
     const reviews = await prisma.review.findMany({
       where: {
         dueDate: {
@@ -560,13 +612,13 @@ export const getOverdueReviews = async (req: AuthenticatedRequest, res: Response
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: reviews
     });
   } catch (error) {
     console.error('Get overdue reviews error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -584,13 +636,13 @@ export const getIssues = async (req: AuthenticatedRequest, res: Response) => {
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: issues
     });
   } catch (error) {
     console.error('Get issues error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -633,14 +685,14 @@ export const createIssue = async (req: AuthenticatedRequest, res: Response) => {
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: issue,
       message: 'Issue created successfully'
     });
   } catch (error) {
     console.error('Create issue error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -698,13 +750,13 @@ export const getSubmissionForEditor = async (req: AuthenticatedRequest, res: Res
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: submission
     });
   } catch (error) {
     console.error('Get submission for editor error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -748,14 +800,14 @@ export const updateSubmissionStatus = async (req: AuthenticatedRequest, res: Res
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedSubmission,
       message: 'Submission status updated successfully'
     });
   } catch (error) {
     console.error('Update submission status error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -765,7 +817,192 @@ export const updateSubmissionStatus = async (req: AuthenticatedRequest, res: Res
 export const performInitialScreening = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { submissionId } = req.params;
-    const { decision, comments } = req.body;
+    const { decision, comments, editorComments } = req.body;
+
+    const submission = await prisma.submission.findUnique({
+      where: { id: submissionId },
+      include: {
+        author: true,
+        coAuthors: true
+      }
+    });
+
+    if (!submission) {
+      return res.status(404).json({
+        success: false,
+        error: 'Submission not found'
+      });
+    }
+
+    if (submission.status !== 'SUBMITTED') {
+      return res.status(400).json({
+        success: false,
+        error: 'Submission is not in submitted status'
+      });
+    }
+
+    let newStatus: SubmissionStatus;
+    let emailTemplate = '';
+    let emailSubject = '';
+
+    switch (decision) {
+      case 'RETURN_FOR_FORMATTING':
+        newStatus = 'RETURNED_FOR_FORMATTING';
+        emailTemplate = 'submission_returned_for_formatting';
+        emailSubject = 'Manuscript Returned for Formatting - Action Required';
+        break;
+      case 'DESK_REJECT':
+        newStatus = 'REJECTED';
+        emailTemplate = 'submission_desk_rejected';
+        emailSubject = 'Manuscript Decision - Not Suitable for Review';
+        break;
+      case 'PROCEED_TO_REVIEW':
+        newStatus = 'UNDER_REVIEW';
+        emailTemplate = 'submission_under_review';
+        emailSubject = 'Manuscript Under Review';
+        break;
+      default:
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid decision'
+        });
+    }
+
+    const updatedSubmission = await prisma.submission.update({
+      where: { id: submissionId },
+      data: {
+        status: newStatus,
+        comments: comments || submission.comments,
+        decisionComments: editorComments
+      },
+      include: {
+        author: true,
+        coAuthors: true,
+        timeline: true
+      }
+    });
+
+    // Add timeline event
+    await prisma.submissionTimeline.create({
+      data: {
+        submissionId,
+        event: 'INITIAL_CHECK_COMPLETED',
+        fromStatus: 'SUBMITTED',
+        toStatus: newStatus,
+        description: `Initial check completed: ${decision.replace(/_/g, ' ').toLowerCase()}`,
+        performedBy: `${req.user!.firstName} ${req.user!.lastName}`
+      }
+    });
+
+    // Send notification email to author
+    try {
+      const emailService = new EmailService();
+      await emailService.sendEmail({
+        to: submission.author.email,
+        subject: emailSubject,
+        template: emailTemplate,
+        data: {
+          authorName: `${submission.author.firstName} ${submission.author.lastName}`,
+          manuscriptTitle: submission.title,
+          submissionId: submission.id,
+          comments: comments || '',
+          editorComments: editorComments || '',
+          decision: decision.replace(/_/g, ' ').toLowerCase()
+        }
+      });
+    } catch (emailError) {
+      console.error('Failed to send notification email:', emailError);
+    }
+
+    return res.json({
+      success: true,
+      data: updatedSubmission,
+      message: `Initial screening completed: ${decision.replace(/_/g, ' ').toLowerCase()}`
+    });
+  } catch (error) {
+    console.error('Perform initial screening error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const acceptHandling = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { submissionId } = req.params;
+    const editorId = req.user!.id;
+
+    const submission = await prisma.submission.findUnique({
+      where: { id: submissionId },
+      include: { editorAssignments: true }
+    });
+
+    if (!submission) {
+      return res.status(404).json({
+        success: false,
+        error: 'Submission not found'
+      });
+    }
+
+    // Check if already assigned to someone else? 
+    // For now, we assume multiple editors can be assigned or we check if it's unassigned.
+    // The flow implies taking ownership.
+
+    const existingAssignment = await prisma.editorAssignment.findFirst({
+      where: {
+        submissionId,
+        editorId
+      }
+    });
+
+    if (existingAssignment) {
+      return res.status(400).json({
+        success: false,
+        error: 'You are already assigned to this submission'
+      });
+    }
+
+    // Create assignment
+    await prisma.editorAssignment.create({
+      data: {
+        submissionId,
+        editorId,
+        isChief: false // Or true if they are the first?
+      }
+    });
+
+    // Update status to INITIAL_REVIEW (Initial Check)
+    const updatedSubmission = await prisma.submission.update({
+      where: { id: submissionId },
+      data: {
+        status: 'INITIAL_REVIEW'
+      },
+      include: {
+        author: true
+      }
+    });
+
+    return res.json({
+      success: true,
+      data: updatedSubmission,
+      message: 'You have accepted handling of this submission'
+    });
+
+  } catch (error) {
+    console.error('Accept handling error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+export const declineHandling = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { submissionId } = req.params;
+    const { reason } = req.body;
+    const editorId = req.user!.id;
 
     const submission = await prisma.submission.findUnique({
       where: { id: submissionId }
@@ -778,33 +1015,44 @@ export const performInitialScreening = async (req: AuthenticatedRequest, res: Re
       });
     }
 
-    let newStatus = submission.status;
-    if (decision === 'PROCEED_TO_REVIEW') {
-      newStatus = 'INITIAL_REVIEW';
-    } else if (decision === 'REJECT') {
-      newStatus = 'REJECTED';
-    }
-
-    const updatedSubmission = await prisma.submission.update({
-      where: { id: submissionId },
-      data: {
-        status: newStatus,
-        comments: comments || submission.comments
-      },
-      include: {
-        author: true,
-        reviews: true
+    // Remove assignment if exists (in case they were auto-assigned)
+    await prisma.editorAssignment.deleteMany({
+      where: {
+        submissionId,
+        editorId
       }
     });
 
-    res.json({
+    // If no other editors are assigned, ensure status is SUBMITTED (Unassigned)
+    const remainingAssignments = await prisma.editorAssignment.count({
+      where: { submissionId }
+    });
+
+    let updatedSubmission = submission;
+    if (remainingAssignments === 0) {
+      updatedSubmission = await prisma.submission.update({
+        where: { id: submissionId },
+        data: {
+          status: 'SUBMITTED' // Revert to SUBMITTED if it was something else
+        }
+      });
+    }
+
+    // Log the decline (could be a separate table or just console for now)
+    console.log(`Editor ${editorId} declined submission ${submissionId}. Reason: ${reason}`);
+
+    // Notify Managing Editor (Mock)
+    // EmailService.notifyManagingEditor(...) 
+
+    return res.json({
       success: true,
       data: updatedSubmission,
-      message: `Initial screening completed: ${decision}`
+      message: 'You have declined this submission. It has been returned to the Unassigned Editors list.'
     });
+
   } catch (error) {
-    console.error('Perform initial screening error:', error);
-    res.status(500).json({
+    console.error('Decline handling error:', error);
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -841,13 +1089,13 @@ export const getReviewsForSubmission = async (req: AuthenticatedRequest, res: Re
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: reviews
     });
   } catch (error) {
     console.error('Get reviews for submission error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -901,13 +1149,13 @@ export const getAvailableReviewers = async (req: AuthenticatedRequest, res: Resp
       take: 50
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: reviewers
     });
   } catch (error) {
     console.error('Get available reviewers error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -934,13 +1182,13 @@ export const removeReviewer = async (req: AuthenticatedRequest, res: Response) =
       where: { id: reviewId }
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Reviewer removed successfully'
     });
   } catch (error) {
     console.error('Remove reviewer error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -977,14 +1225,14 @@ export const sendReviewerReminder = async (req: AuthenticatedRequest, res: Respo
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedReview,
       message: 'Reminder sent to reviewer'
     });
   } catch (error) {
     console.error('Send reviewer reminder error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1018,14 +1266,14 @@ export const extendReviewDeadline = async (req: AuthenticatedRequest, res: Respo
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedReview,
       message: 'Review deadline extended'
     });
   } catch (error) {
     console.error('Extend review deadline error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1076,14 +1324,14 @@ export const addArticleToIssue = async (req: AuthenticatedRequest, res: Response
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedSubmission,
       message: 'Article added to issue successfully'
     });
   } catch (error) {
     console.error('Add article to issue error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1117,14 +1365,14 @@ export const requestRevision = async (req: AuthenticatedRequest, res: Response) 
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedSubmission,
       message: `${type} revision requested`
     });
   } catch (error) {
     console.error('Request revision error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1154,13 +1402,13 @@ export const getRevisedSubmissions = async (req: AuthenticatedRequest, res: Resp
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: submissions
     });
   } catch (error) {
     console.error('Get revised submissions error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1183,20 +1431,37 @@ export const handleRevision = async (req: AuthenticatedRequest, res: Response) =
       });
     }
 
-    let newStatus: 'REVISED' | 'ACCEPTED' | 'REJECTED' | 'UNDER_REVIEW' = 'REVISED';
-    if (decision === 'ACCEPT_REVISION') {
-      newStatus = 'ACCEPTED';
-    } else if (decision === 'REJECT_REVISION') {
-      newStatus = 'REJECTED';
-    } else if (decision === 'SEND_FOR_RE_REVIEW') {
-      newStatus = 'UNDER_REVIEW';
+    // Check if APC is enabled
+    const apcEnabled = process.env.APC_ENABLED === 'true';
+
+    let newStatus: SubmissionStatus;
+    switch (decision) {
+      case 'ACCEPT_REVISION':
+        // Always set to PAYMENT_PENDING for accept
+        newStatus = 'PAYMENT_PENDING' as SubmissionStatus;
+        break;
+      case 'REQUEST_FURTHER_REVISION':
+        newStatus = SubmissionStatus.REVISION_REQUIRED;
+        break;
+      case 'SEND_FOR_RE_REVIEW':
+        newStatus = SubmissionStatus.UNDER_REVIEW;
+        break;
+      case 'REJECT_REVISION':
+        newStatus = SubmissionStatus.REJECTED;
+        break;
+      default:
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid decision'
+        });
     }
 
     const updatedSubmission = await prisma.submission.update({
       where: { id: submissionId },
       data: {
         status: newStatus,
-        comments: comments || submission.comments
+        comments: comments || submission.comments,
+        ...(decision === 'ACCEPT_REVISION' && { acceptedAt: new Date() })
       },
       include: {
         author: true,
@@ -1204,14 +1469,93 @@ export const handleRevision = async (req: AuthenticatedRequest, res: Response) =
       }
     });
 
-    res.json({
+    // Handle specific actions based on decision
+    if (decision === 'ACCEPT_REVISION') {
+      // Create payment if APC enabled
+      if (apcEnabled) {
+        const apcAmount = parseFloat(process.env.APC_AMOUNT || '299.00');
+        const currency = process.env.APC_CURRENCY || 'INR';
+        const invoiceNumber = `INV-${Date.now()}-${submissionId.substring(0, 8).toUpperCase()}`;
+
+        await prisma.payment.create({
+          data: {
+            amount: apcAmount,
+            currency,
+            status: 'PENDING',
+            invoiceNumber,
+            userId: submission.authorId,
+            submissionId
+          }
+        });
+      }
+
+      // Send acceptance notification
+      try {
+        await EmailService.sendRevisionAcceptedNotification(submissionId);
+      } catch (emailError) {
+        console.error('Failed to send revision acceptance email:', emailError);
+      }
+
+      // Create notification
+      await prisma.notification.create({
+        data: {
+          userId: submission.authorId,
+          type: 'REVISION_ACCEPTED',
+          title: 'Revision Accepted',
+          message: `Your revision for "${submission.title}" has been accepted.`,
+          submissionId
+        }
+      });
+    } else if (decision === 'REQUEST_FURTHER_REVISION') {
+      // Notify author about further revision
+      // TODO: Add specific email template for this
+      await prisma.notification.create({
+        data: {
+          userId: submission.authorId,
+          type: 'REVISION_REQUESTED',
+          title: 'Further Revision Required',
+          message: `Further revisions are required for your submission "${submission.title}".`,
+          submissionId
+        }
+      });
+    } else if (decision === 'SEND_FOR_RE_REVIEW') {
+      // Notify author that it's back under review
+      await prisma.notification.create({
+        data: {
+          userId: submission.authorId,
+          type: 'STATUS_CHANGE',
+          title: 'Submission Under Review',
+          message: `Your revised submission "${submission.title}" has been sent for re-review.`,
+          submissionId
+        }
+      });
+    } else if (decision === 'REJECT_REVISION') {
+      // Notify author of rejection
+      try {
+        await EmailService.sendDecisionNotification(submissionId, 'REJECT');
+      } catch (emailError) {
+        console.error('Failed to send rejection email:', emailError);
+      }
+
+      await prisma.notification.create({
+        data: {
+          userId: submission.authorId,
+          type: 'DECISION_MADE',
+          title: 'Submission Rejected',
+          message: `Your revised submission "${submission.title}" has been rejected.`,
+          submissionId
+        }
+      });
+    }
+
+    return res.json({
       success: true,
       data: updatedSubmission,
       message: `Revision handled: ${decision}`
     });
   } catch (error) {
     console.error('Handle revision error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1247,14 +1591,14 @@ export const moveToProduction = async (req: AuthenticatedRequest, res: Response)
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedSubmission,
       message: 'Submission moved to production'
     });
   } catch (error) {
     console.error('Move to production error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1290,7 +1634,7 @@ export const assignDOI = async (req: AuthenticatedRequest, res: Response) => {
       data: { doi }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         doi: updatedSubmission.doi
@@ -1298,7 +1642,7 @@ export const assignDOI = async (req: AuthenticatedRequest, res: Response) => {
     });
   } catch (error) {
     console.error('Assign DOI error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1345,14 +1689,14 @@ export const publishSubmission = async (req: AuthenticatedRequest, res: Response
       }
     });
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedSubmission,
       message: 'Submission published successfully'
     });
   } catch (error) {
     console.error('Publish submission error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1376,13 +1720,13 @@ export const sendDecisionLetter = async (req: AuthenticatedRequest, res: Respons
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Decision letter sent successfully'
     });
   } catch (error) {
     console.error('Send decision letter error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1411,13 +1755,13 @@ export const sendCustomEmail = async (req: AuthenticatedRequest, res: Response) 
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Email sent successfully'
     });
   } catch (error) {
     console.error('Send custom email error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1439,7 +1783,7 @@ export const runPlagiarismCheck = async (req: AuthenticatedRequest, res: Respons
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         similarity: Math.floor(Math.random() * 30),
@@ -1452,7 +1796,7 @@ export const runPlagiarismCheck = async (req: AuthenticatedRequest, res: Respons
     });
   } catch (error) {
     console.error('Run plagiarism check error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1474,7 +1818,7 @@ export const performQualityCheck = async (req: AuthenticatedRequest, res: Respon
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: {
         score: Math.floor(Math.random() * 100),
@@ -1484,7 +1828,7 @@ export const performQualityCheck = async (req: AuthenticatedRequest, res: Respon
     });
   } catch (error) {
     console.error('Perform quality check error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1563,13 +1907,13 @@ export const getSubmissionTimeline = async (req: AuthenticatedRequest, res: Resp
 
     timeline.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    res.json({
+    return res.json({
       success: true,
       data: timeline
     });
   } catch (error) {
     console.error('Get submission timeline error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1630,7 +1974,7 @@ export const getReviewerInvitations = async (req: AuthenticatedRequest, res: Res
       prisma.reviewerInvitation.count({ where })
     ]);
 
-    res.json({
+    return res.json({
       success: true,
       data: invitations,
       pagination: {
@@ -1642,7 +1986,7 @@ export const getReviewerInvitations = async (req: AuthenticatedRequest, res: Res
     });
   } catch (error) {
     console.error('Get reviewer invitations error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1716,14 +2060,14 @@ export const acceptReviewerInvitation = async (req: AuthenticatedRequest, res: R
       })
     ]);
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedInvitation,
       message: 'Invitation accepted successfully'
     });
   } catch (error) {
     console.error('Accept reviewer invitation error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
@@ -1787,14 +2131,14 @@ export const declineReviewerInvitation = async (req: AuthenticatedRequest, res: 
       })
     ]);
 
-    res.json({
+    return res.json({
       success: true,
       data: updatedInvitation,
       message: 'Invitation declined successfully'
     });
   } catch (error) {
     console.error('Decline reviewer invitation error:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Internal server error'
     });
