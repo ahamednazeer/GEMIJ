@@ -6,8 +6,12 @@ import { EmailTemplateData } from '../types';
 const prisma = new PrismaClient();
 
 // Initialize SendGrid with API key
-const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || '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';
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+if (!SENDGRID_API_KEY) {
+  throw new Error('SENDGRID_API_KEY environment variable is not set');
+}
 sgMail.setApiKey(SENDGRID_API_KEY);
+
 
 export class EmailService {
   static async sendEmail(data: EmailTemplateData): Promise<void> {
