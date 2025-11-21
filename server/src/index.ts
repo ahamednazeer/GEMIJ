@@ -16,6 +16,7 @@ import notificationRoutes from './routes/notifications';
 import publicationRoutes from './routes/publication';
 import issueConferenceRoutes from './routes/issueConference';
 import feedRoutes from './routes/feed';
+import { initializeDatabase } from './utils/db-init';
 
 dotenv.config();
 
@@ -89,14 +90,29 @@ app.use((error: any, req: express.Request, res: express.Response, next: express.
     });
   }
 
-  res.status(500).json({
+  return res.status(500).json({
     success: false,
     error: 'Internal server error'
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Academic Journal API server running on port ${PORT}`);
-  console.log(`📚 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
-});
+// Initialize database and start server
+async function startServer() {
+  try {
+    // Initialize database (migrations + seeding)
+    await initializeDatabase();
+
+    // Start Express server
+    app.listen(PORT, () => {
+      console.log(`🚀 Academic Journal API server running on port ${PORT}`);
+      console.log(`📚 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    console.error('Please check your database connection and try again.');
+    process.exit(1);
+  }
+}
+
+startServer();
