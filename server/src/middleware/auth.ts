@@ -3,15 +3,16 @@ import { AuthenticatedRequest } from '../types';
 import { verifyToken } from '../utils/auth';
 import { UserRole } from '@prisma/client';
 
-export const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         error: 'Access token required'
       });
+      return;
     }
 
     const token = authHeader.substring(7);
@@ -20,7 +21,7 @@ export const authenticate = (req: AuthenticatedRequest, res: Response, next: Nex
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({
+    res.status(401).json({
       success: false,
       error: 'Invalid or expired token'
     });
@@ -28,26 +29,28 @@ export const authenticate = (req: AuthenticatedRequest, res: Response, next: Nex
 };
 
 export const authorize = (...roles: UserRole[]) => {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
-      return res.status(401).json({
+      res.status(401).json({
         success: false,
         error: 'Authentication required'
       });
+      return;
     }
 
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
+      res.status(403).json({
         success: false,
         error: 'Insufficient permissions'
       });
+      return;
     }
 
     next();
   };
 };
 
-export const optionalAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const optionalAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   try {
     const authHeader = req.headers.authorization;
 
